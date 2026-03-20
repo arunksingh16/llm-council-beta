@@ -5,6 +5,15 @@ All notable changes to LLM Council Plus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-03-20
+
+### Added
+- **Azure OpenAI (AI Foundry) Provider**: Full integration with Azure OpenAI endpoints using OpenAI-compatible API format. Supports configurable endpoint URL, API key, and multiple deployment names. Includes test connection, auto-save on success, and provider toggle in Council Config.
+- **Azure Icon & UI**: Azure provider icon, CouncilGrid detection, and dedicated settings section with deployment management
+
+### Changed
+- Updated CLAUDE.md with Azure provider documentation, model ID prefix format, and `max_completion_tokens` gotcha
+
 ## [0.3.0] - 2026-03-20
 
 ### Added

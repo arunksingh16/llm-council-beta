@@ -170,6 +170,21 @@ export default function CouncilConfig({
                                 <span className="toggle-text">AWS Bedrock</span>
                             </label>
                         )}
+
+                        {/* Azure OpenAI Toggle - only show if configured */}
+                        {settings?.azure_api_key_set && (
+                            <label className="toggle-wrapper">
+                                <div className="toggle-switch">
+                                    <input
+                                        type="checkbox"
+                                        checked={enabledProviders.azure}
+                                        onChange={(e) => setEnabledProviders(prev => ({ ...prev, azure: e.target.checked }))}
+                                    />
+                                    <span className="slider"></span>
+                                </div>
+                                <span className="toggle-text">Azure OpenAI</span>
+                            </label>
+                        )}
                     </div>
 
                     <div className="filter-divider"></div>

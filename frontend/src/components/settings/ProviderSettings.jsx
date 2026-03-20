@@ -9,6 +9,7 @@ import mistralIcon from '../../assets/icons/mistral.svg';
 import deepseekIcon from '../../assets/icons/deepseek.svg';
 import customEndpointIcon from '../../assets/icons/openai-compatible.svg';
 import bedrockIcon from '../../assets/icons/bedrock.svg';
+import azureIcon from '../../assets/icons/azure.svg';
 
 const PROVIDER_ICONS = {
     openai: openaiIcon,
@@ -92,7 +93,19 @@ export default function ProviderSettings({
     bedrockModels,
     bedrockModelIds,
     setBedrockModelIds,
-    handleSaveBedrockModels
+    handleSaveBedrockModels,
+    // Azure OpenAI
+    azureApiKey,
+    setAzureApiKey,
+    azureEndpoint,
+    setAzureEndpoint,
+    handleTestAzure,
+    isTestingAzure,
+    azureTestResult,
+    azureModels,
+    azureDeploymentNames,
+    setAzureDeploymentNames,
+    handleSaveAzureModels
 }) {
     return (
         <section className="settings-section">
@@ -372,6 +385,112 @@ export default function ProviderSettings({
 
                     <p className="api-key-hint">
                         Get key at <a href="https://console.aws.amazon.com/bedrock/" target="_blank" rel="noopener noreferrer">AWS Bedrock Console</a>
+                    </p>
+                </form>
+            </div>
+
+            {/* Azure OpenAI (AI Foundry) */}
+            <div className="subsection" style={{ marginTop: '24px' }}>
+                <h4>Azure OpenAI (AI Foundry)</h4>
+                <p className="subsection-description" style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '16px' }}>
+                    Connect to Azure OpenAI using your endpoint URL, API key, and deployment names.
+                </p>
+                <form className="api-key-section" onSubmit={e => e.preventDefault()}>
+                    <label>
+                        <img src={azureIcon} alt="" className="provider-icon" />
+                        Endpoint URL
+                    </label>
+                    <div className="api-key-input-row">
+                        <input
+                            type="text"
+                            placeholder="https://your-resource.openai.azure.com/openai/v1/"
+                            value={azureEndpoint}
+                            onChange={(e) => setAzureEndpoint(e.target.value)}
+                        />
+                    </div>
+
+                    <label style={{ marginTop: '12px' }}>API Key</label>
+                    <div className="api-key-input-row">
+                        <input
+                            type="password"
+                            placeholder={settings?.azure_api_key_set ? '••••••••••••••••' : 'Enter Azure API key'}
+                            value={azureApiKey}
+                            onChange={(e) => setAzureApiKey(e.target.value)}
+                            className={settings?.azure_api_key_set && !azureApiKey ? 'key-configured' : ''}
+                        />
+                        <button
+                            className="test-button"
+                            onClick={handleTestAzure}
+                            disabled={(!azureApiKey && !settings?.azure_api_key_set) || !azureEndpoint || isTestingAzure}
+                        >
+                            {isTestingAzure ? 'Testing...' : (settings?.azure_api_key_set && !azureApiKey ? 'Retest' : 'Test')}
+                        </button>
+                    </div>
+
+                    {settings?.azure_api_key_set && !azureApiKey && (
+                        <div className="key-status set">
+                            ✓ API key configured
+                            {azureModels.length > 0 && ` · ${azureModels.length} deployment(s) configured`}
+                        </div>
+                    )}
+                    {azureTestResult && (
+                        <div className={`test-result ${azureTestResult.success ? 'success' : 'error'}`}>
+                            {azureTestResult.message}
+                        </div>
+                    )}
+
+                    {/* Deployment Names */}
+                    <label style={{ marginTop: '16px' }}>Deployment Names</label>
+                    <p className="subsection-description" style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', marginTop: '2px' }}>
+                        Add your Azure deployment names (e.g. <code style={{ fontSize: '11px', background: 'rgba(255,255,255,0.05)', padding: '1px 4px', borderRadius: '3px' }}>gpt-4o</code>, <code style={{ fontSize: '11px', background: 'rgba(255,255,255,0.05)', padding: '1px 4px', borderRadius: '3px' }}>gpt-5.4</code>)
+                    </p>
+                    {(azureDeploymentNames || []).map((name, idx) => (
+                        <div key={idx} className="api-key-input-row" style={{ marginBottom: '6px' }}>
+                            <input
+                                type="text"
+                                placeholder="e.g. gpt-4o"
+                                value={name}
+                                onChange={(e) => {
+                                    const updated = [...azureDeploymentNames];
+                                    updated[idx] = e.target.value;
+                                    setAzureDeploymentNames(updated);
+                                }}
+                                style={{ fontFamily: 'var(--font-code, monospace)', fontSize: '13px' }}
+                            />
+                            <button
+                                type="button"
+                                className="test-button"
+                                style={{ minWidth: '36px', padding: '0 8px', color: '#ef4444' }}
+                                onClick={() => {
+                                    const updated = azureDeploymentNames.filter((_, i) => i !== idx);
+                                    setAzureDeploymentNames(updated);
+                                }}
+                                title="Remove deployment"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                        <button
+                            type="button"
+                            className="reset-defaults-button"
+                            onClick={() => setAzureDeploymentNames([...(azureDeploymentNames || []), ''])}
+                        >
+                            + Add Deployment
+                        </button>
+                        <button
+                            type="button"
+                            className="test-button"
+                            onClick={handleSaveAzureModels}
+                            disabled={!azureDeploymentNames || azureDeploymentNames.every(d => !d.trim())}
+                        >
+                            Save Deployments
+                        </button>
+                    </div>
+
+                    <p className="api-key-hint">
+                        Manage at <a href="https://ai.azure.com" target="_blank" rel="noopener noreferrer">Azure AI Foundry</a>
                     </p>
                 </form>
             </div>

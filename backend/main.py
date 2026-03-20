@@ -412,6 +412,11 @@ class UpdateSettingsRequest(BaseModel):
     bedrock_region: Optional[str] = None
     bedrock_model_ids: Optional[List[str]] = None
 
+    # Azure OpenAI (AI Foundry)
+    azure_endpoint: Optional[str] = None
+    azure_api_key: Optional[str] = None
+    azure_deployment_names: Optional[List[str]] = None
+
     # Enabled Providers
     enabled_providers: Optional[Dict[str, bool]] = None
     direct_provider_toggles: Optional[Dict[str, bool]] = None
@@ -477,6 +482,11 @@ async def get_app_settings():
         "bedrock_api_key_set": bool(settings.bedrock_api_key),
         "bedrock_region": settings.bedrock_region,
         "bedrock_model_ids": settings.bedrock_model_ids,
+
+        # Azure OpenAI
+        "azure_api_key_set": bool(settings.azure_api_key),
+        "azure_endpoint": settings.azure_endpoint,
+        "azure_deployment_names": settings.azure_deployment_names,
 
         # Enabled Providers
         "enabled_providers": settings.enabled_providers,
@@ -619,6 +629,14 @@ async def update_app_settings(request: UpdateSettingsRequest):
     if request.bedrock_model_ids is not None:
         updates["bedrock_model_ids"] = request.bedrock_model_ids
 
+    # Azure OpenAI
+    if request.azure_endpoint is not None:
+        updates["azure_endpoint"] = request.azure_endpoint
+    if request.azure_api_key is not None:
+        updates["azure_api_key"] = request.azure_api_key
+    if request.azure_deployment_names is not None:
+        updates["azure_deployment_names"] = request.azure_deployment_names
+
     # Enabled Providers
     if request.enabled_providers is not None:
         updates["enabled_providers"] = request.enabled_providers
@@ -702,6 +720,11 @@ async def update_app_settings(request: UpdateSettingsRequest):
         "bedrock_api_key_set": bool(settings.bedrock_api_key),
         "bedrock_region": settings.bedrock_region,
         "bedrock_model_ids": settings.bedrock_model_ids,
+
+        # Azure OpenAI
+        "azure_api_key_set": bool(settings.azure_api_key),
+        "azure_endpoint": settings.azure_endpoint,
+        "azure_deployment_names": settings.azure_deployment_names,
 
         # Enabled Providers
         "enabled_providers": settings.enabled_providers,
@@ -1139,6 +1162,66 @@ async def update_bedrock_models(request: UpdateBedrockModelsRequest):
     model_ids = [mid.strip() for mid in request.model_ids if mid.strip()]
     settings = update_settings(bedrock_model_ids=model_ids)
     return {"models": model_ids, "count": len(model_ids)}
+
+
+class TestAzureRequest(BaseModel):
+    """Request to test Azure OpenAI endpoint."""
+    api_key: str = ""
+    endpoint: str = ""
+    deployment_names: Optional[List[str]] = None
+
+
+@app.post("/api/settings/test-azure")
+async def test_azure_connection(request: TestAzureRequest):
+    """Test Azure OpenAI endpoint and API key."""
+    from .providers.azure import AzureProvider
+    from .settings import update_settings, get_settings
+
+    # Save endpoint and deployment names first so validate_key picks them up
+    updates = {}
+    if request.endpoint:
+        updates["azure_endpoint"] = request.endpoint
+    if request.deployment_names is not None:
+        filtered = [d.strip() for d in request.deployment_names if d.strip()]
+        if filtered:
+            updates["azure_deployment_names"] = filtered
+    if updates:
+        update_settings(**updates)
+
+    # Use stored key if none provided
+    api_key = request.api_key
+    if not api_key:
+        settings = get_settings()
+        api_key = settings.azure_api_key or ""
+
+    if not api_key:
+        return {"success": False, "message": "No API key provided or configured"}
+
+    provider = AzureProvider()
+    return await provider.validate_key(api_key)
+
+
+@app.get("/api/azure/models")
+async def get_azure_models():
+    """Get user-configured Azure deployment models."""
+    from .providers.azure import AzureProvider
+
+    provider = AzureProvider()
+    models = await provider.get_models()
+    return {"models": models}
+
+
+class UpdateAzureModelsRequest(BaseModel):
+    """Request to update Azure deployment names."""
+    deployment_names: List[str]
+
+
+@app.put("/api/azure/models")
+async def update_azure_models(request: UpdateAzureModelsRequest):
+    """Update user-configured Azure deployment names."""
+    deployment_names = [d.strip() for d in request.deployment_names if d.strip()]
+    settings = update_settings(azure_deployment_names=deployment_names)
+    return {"deployment_names": deployment_names, "count": len(deployment_names)}
 
 
 @app.get("/api/audit/logs")

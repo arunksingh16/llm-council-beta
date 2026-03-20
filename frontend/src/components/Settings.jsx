@@ -54,6 +54,14 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
   const [isTestingBedrock, setIsTestingBedrock] = useState(false);
   const [bedrockTestResult, setBedrockTestResult] = useState(null);
 
+  // Azure OpenAI State
+  const [azureApiKey, setAzureApiKey] = useState('');
+  const [azureEndpoint, setAzureEndpoint] = useState('');
+  const [azureDeploymentNames, setAzureDeploymentNames] = useState([]);
+  const [azureModels, setAzureModels] = useState([]);
+  const [isTestingAzure, setIsTestingAzure] = useState(false);
+  const [azureTestResult, setAzureTestResult] = useState(null);
+
   // Direct Provider State
   const [directKeys, setDirectKeys] = useState({
     openai_api_key: '',
@@ -197,7 +205,7 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
   ]);
 
   // Helper to determine if filters need to switch based on availability
-  const isRemoteAvailable = enabledProviders.openrouter || enabledProviders.direct || enabledProviders.groq || enabledProviders.custom || enabledProviders.bedrock;
+  const isRemoteAvailable = enabledProviders.openrouter || enabledProviders.direct || enabledProviders.groq || enabledProviders.custom || enabledProviders.bedrock || enabledProviders.azure;
   const isLocalAvailable = enabledProviders.ollama;
 
   const getNewFilter = (currentFilter) => {
@@ -396,6 +404,10 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       setBedrockRegion(data.bedrock_region || 'us-east-1');
       setBedrockModelIds(data.bedrock_model_ids || []);
 
+      // Azure Settings
+      setAzureEndpoint(data.azure_endpoint || '');
+      setAzureDeploymentNames(data.azure_deployment_names || []);
+
       // Ollama Settings
       setOllamaBaseUrl(data.ollama_base_url || 'http://localhost:11434');
 
@@ -430,6 +442,9 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       }
       if (data.bedrock_api_key_set) {
         loadBedrockModels();
+      }
+      if (data.azure_api_key_set) {
+        loadAzureModels();
       }
 
     } catch (err) {
@@ -513,6 +528,76 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       }
     } catch (err) {
       console.warn('Failed to load Bedrock models:', err);
+    }
+  };
+
+  const handleSaveAzureModels = async () => {
+    try {
+      const filtered = (azureDeploymentNames || []).filter(d => d.trim());
+      await api.updateAzureModels(filtered);
+      setAzureDeploymentNames(filtered);
+      await loadAzureModels();
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save Azure deployments:', err);
+    }
+  };
+
+  const loadAzureModels = async () => {
+    try {
+      const data = await api.getAzureModels();
+      if (data.models && data.models.length > 0) {
+        const sorted = data.models.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setAzureModels(sorted);
+      }
+    } catch (err) {
+      console.warn('Failed to load Azure models:', err);
+    }
+  };
+
+  const handleTestAzure = async () => {
+    if (!azureApiKey && !settings.azure_api_key_set) {
+      setAzureTestResult({ success: false, message: 'Please enter an API key first' });
+      return;
+    }
+    if (!azureEndpoint) {
+      setAzureTestResult({ success: false, message: 'Please enter the Azure endpoint URL first' });
+      return;
+    }
+    const filteredDeployments = (azureDeploymentNames || []).filter(d => d.trim());
+    if (filteredDeployments.length === 0) {
+      setAzureTestResult({ success: false, message: 'Add at least one deployment name first, then test.' });
+      return;
+    }
+    setIsTestingAzure(true);
+    setAzureTestResult(null);
+    try {
+      const keyToTest = azureApiKey || "";
+      const result = await api.testAzureKey(keyToTest, azureEndpoint, filteredDeployments);
+      setAzureTestResult(result);
+
+      // Auto-save if validation succeeds
+      if (result.success && azureApiKey) {
+        await api.updateSettings({
+          azure_api_key: azureApiKey,
+          azure_endpoint: azureEndpoint
+        });
+        setAzureApiKey(''); // Clear input after save
+        await loadSettings();
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      } else if (result.success && !azureApiKey) {
+        // Endpoint change only
+        await api.updateSettings({ azure_endpoint: azureEndpoint });
+        await loadSettings();
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      }
+    } catch (err) {
+      setAzureTestResult({ success: false, message: 'Test failed' });
+    } finally {
+      setIsTestingAzure(false);
     }
   };
 
@@ -950,7 +1035,7 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
 
     // Determine best default filter based on what's available
     let defaultFilter = 'remote';
-    const isRemoteAvailable = enabledProviders.openrouter || enabledProviders.direct || enabledProviders.groq || enabledProviders.custom || enabledProviders.bedrock;
+    const isRemoteAvailable = enabledProviders.openrouter || enabledProviders.direct || enabledProviders.groq || enabledProviders.custom || enabledProviders.bedrock || enabledProviders.azure;
     const isLocalAvailable = enabledProviders.ollama && ollamaAvailableModels.length > 0;
 
     if (!isRemoteAvailable && isLocalAvailable) {
@@ -1427,6 +1512,11 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       models.push(...bedrockModels);
     }
 
+    // Add Azure models if enabled and configured
+    if (enabledProviders.azure && azureModels.length > 0) {
+      models.push(...azureModels);
+    }
+
     // Deduplicate by model ID (prefer direct connections over OpenRouter for same model)
     // Since direct models are added last, always set to overwrite earlier entries
     const uniqueModels = new Map();
@@ -1442,6 +1532,7 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
     directAvailableModels,
     customEndpointModels,
     bedrockModels,
+    azureModels,
     directProviderToggles,
     directKeys,
     settings
@@ -1595,6 +1686,18 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
                 bedrockModelIds={bedrockModelIds}
                 setBedrockModelIds={setBedrockModelIds}
                 handleSaveBedrockModels={handleSaveBedrockModels}
+                // Azure OpenAI
+                azureApiKey={azureApiKey}
+                setAzureApiKey={(val) => { setAzureApiKey(val); setAzureTestResult(null); }}
+                azureEndpoint={azureEndpoint}
+                setAzureEndpoint={(val) => { setAzureEndpoint(val); setAzureTestResult(null); }}
+                handleTestAzure={handleTestAzure}
+                isTestingAzure={isTestingAzure}
+                azureTestResult={azureTestResult}
+                azureModels={azureModels}
+                azureDeploymentNames={azureDeploymentNames}
+                setAzureDeploymentNames={setAzureDeploymentNames}
+                handleSaveAzureModels={handleSaveAzureModels}
               />
             )}
 

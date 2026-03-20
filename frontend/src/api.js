@@ -305,6 +305,53 @@ export const api = {
   },
 
   /**
+   * Test Azure OpenAI endpoint.
+   */
+  async testAzureKey(apiKey, endpoint, deploymentNames) {
+    const payload = { api_key: apiKey || '', endpoint: endpoint || '' };
+    if (deploymentNames) payload.deployment_names = deploymentNames;
+    const response = await fetch(`${API_BASE}/api/settings/test-azure`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to test Azure endpoint');
+    }
+    return response.json();
+  },
+
+  /**
+   * Get user-configured Azure models.
+   */
+  async getAzureModels() {
+    const response = await fetch(`${API_BASE}/api/azure/models`);
+    if (!response.ok) {
+      throw new Error('Failed to get Azure models');
+    }
+    return response.json();
+  },
+
+  /**
+   * Update Azure deployment names.
+   */
+  async updateAzureModels(deploymentNames) {
+    const response = await fetch(`${API_BASE}/api/azure/models`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ deployment_names: deploymentNames }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update Azure models');
+    }
+    return response.json();
+  },
+
+  /**
    * Get audit log entries (for polling).
    */
   async getAuditLogs(sinceId = 0) {

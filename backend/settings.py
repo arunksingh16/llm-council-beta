@@ -21,7 +21,8 @@ DEFAULT_ENABLED_PROVIDERS = {
     "groq": False,
     "direct": False,  # Master toggle for all direct connections
     "custom": False,  # Custom OpenAI-compatible endpoint
-    "bedrock": False  # AWS Bedrock
+    "bedrock": False,  # AWS Bedrock
+    "azure": False  # Azure OpenAI (AI Foundry)
 }
 
 # Default direct provider toggles (individual)
@@ -90,6 +91,11 @@ class Settings(BaseModel):
     bedrock_api_key: Optional[str] = None
     bedrock_region: str = "us-east-1"
     bedrock_model_ids: List[str] = []  # User-configured model IDs
+
+    # Azure OpenAI (AI Foundry) Settings
+    azure_endpoint: Optional[str] = None
+    azure_api_key: Optional[str] = None
+    azure_deployment_names: List[str] = []  # User-configured deployment names
 
     # Ollama Settings
     ollama_base_url: str = "http://localhost:11434"

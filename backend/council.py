@@ -84,6 +84,7 @@ from .providers.ollama import OllamaProvider
 from .providers.groq import GroqProvider
 from .providers.custom_openai import CustomOpenAIProvider
 from .providers.bedrock import BedrockProvider
+from .providers.azure import AzureProvider
 
 # Initialize providers
 PROVIDERS = {
@@ -97,6 +98,7 @@ PROVIDERS = {
     "ollama": OllamaProvider(),
     "custom": CustomOpenAIProvider(),
     "bedrock": BedrockProvider(),
+    "azure": AzureProvider(),
 }
 
 def get_provider_for_model(model_id: str) -> Any:

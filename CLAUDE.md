@@ -9,7 +9,7 @@ LLM Council Plus is a 3-stage deliberation system where multiple LLMs collaborat
 2. **Stage 2**: Anonymous peer review/ranking to prevent bias
 3. **Stage 3**: Chairman synthesis of collective wisdom
 
-**Key Innovation**: Hybrid architecture supporting OpenRouter (cloud), Ollama (local), Groq (fast inference), direct provider connections, and custom OpenAI-compatible endpoints.
+**Key Innovation**: Hybrid architecture supporting OpenRouter (cloud), Ollama (local), Groq (fast inference), direct provider connections, Azure OpenAI (AI Foundry), and custom OpenAI-compatible endpoints.
 
 ## Running the Application
 
@@ -61,8 +61,8 @@ This fixes binary incompatibilities (e.g., `@rollup/rollup-darwin-*` variants).
 
 **Provider System** (`backend/providers/`)
 - **Base**: `base.py` - Abstract interface for all LLM providers
-- **Implementations**: `openrouter.py`, `ollama.py`, `groq.py`, `openai.py`, `anthropic.py`, `google.py`, `mistral.py`, `deepseek.py`, `custom_openai.py`
-- **Auto-routing**: Model IDs with prefix (e.g., `openai:gpt-4.1`, `ollama:llama3`, `custom:model-name`) route to correct provider
+- **Implementations**: `openrouter.py`, `ollama.py`, `groq.py`, `openai.py`, `anthropic.py`, `google.py`, `mistral.py`, `deepseek.py`, `custom_openai.py`, `bedrock.py`, `azure.py`
+- **Auto-routing**: Model IDs with prefix (e.g., `openai:gpt-4.1`, `ollama:llama3`, `custom:model-name`, `azure:gpt-5.4`) route to correct provider
 - **Routing logic**: `council.py:get_provider_for_model()` handles prefix parsing
 
 **Core Modules**
@@ -116,6 +116,7 @@ groq:llama3-70b-8192                  → Fast inference via Groq
 openai:gpt-4.1                        → Direct OpenAI connection
 anthropic:claude-sonnet-4             → Direct Anthropic connection
 custom:model-name                     → Custom OpenAI-compatible endpoint
+azure:gpt-5.4                         → Azure OpenAI (AI Foundry)
 ```
 
 ### Model Name Display Helper
@@ -197,6 +198,8 @@ useEffect(() => {
 
 9. **Custom Endpoint Icons**: Models from custom endpoints may match name patterns (e.g., "claude"). Check `custom:` prefix first.
 
+10. **Azure OpenAI `max_tokens`**: Newer Azure models (gpt-5.4, o-series) reject `max_tokens` — use `max_completion_tokens` instead. The Azure provider handles this.
+
 ## Data Flow
 
 ```
@@ -248,7 +251,7 @@ curl https://your-endpoint.com/v1/models -H "Authorization: Bearer $API_KEY"
 ## Settings
 
 **UI Sections** (sidebar navigation):
-1. **LLM API Keys**: OpenRouter, Groq, Ollama, Direct providers, Custom endpoint
+1. **LLM API Keys**: OpenRouter, Groq, Ollama, Direct providers, Azure OpenAI, Custom endpoint
 2. **Council Config**: Model selection with Remote/Local toggles, temperature controls, "I'm Feeling Lucky" randomizer
 3. **System Prompts**: Stage 1/2/3 prompts with reset-to-default
 4. **Search Providers**: DuckDuckGo, Tavily, Brave + Jina full content settings
