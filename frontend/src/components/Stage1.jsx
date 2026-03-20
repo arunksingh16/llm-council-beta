@@ -97,9 +97,16 @@ export default function Stage1({ responses, startTime, endTime }) {
             </span>
             <div className="model-info">
               <span className="model-name-large">{currentResponse.model || 'Unknown Model'}</span>
-              <span className="model-provider-badge" style={{ borderColor: currentVisuals.color, color: currentVisuals.color }}>
-                {currentVisuals.name}
-              </span>
+              <div className="model-badges">
+                <span className="model-provider-badge" style={{ borderColor: currentVisuals.color, color: currentVisuals.color }}>
+                  {currentVisuals.name}
+                </span>
+                {currentResponse.role && (
+                  <span className="model-role-badge">
+                    {currentResponse.role}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

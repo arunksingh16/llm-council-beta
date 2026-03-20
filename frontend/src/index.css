@@ -162,6 +162,47 @@ body::after {
   border-radius: 0 8px 8px 0;
 }
 
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.9em;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.markdown-content thead {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.markdown-content th {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  border-bottom: 2px solid rgba(59, 130, 246, 0.25);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.markdown-content td {
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  color: var(--text-secondary);
+  vertical-align: top;
+}
+
+.markdown-content tbody tr:hover {
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.markdown-content tbody tr:last-child td {
+  border-bottom: none;
+}
+
 /* Global Button Reset */
 button {
   font-family: var(--font-ui);

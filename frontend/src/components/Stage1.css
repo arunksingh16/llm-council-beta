@@ -119,6 +119,13 @@
   color: var(--text-primary);
 }
 
+.model-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .model-provider-badge {
   font-size: 11px;
   padding: 1px 6px;
@@ -128,6 +135,18 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.model-role-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #a78bfa;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  letter-spacing: 0.02em;
 }
 
 .model-status {

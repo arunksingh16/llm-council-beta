@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import Settings from './components/Settings';
+import AuditLog from './components/AuditLog';
 import { api } from './api';
 import './App.css';
 import './components/StageCopyButtons.css';
@@ -256,7 +257,7 @@ function App() {
     }
   };
 
-  const handleSendMessage = async (content, webSearch) => {
+  const handleSendMessage = async (content, webSearch, attachedContent = null, attachedFiles = null) => {
     if (!currentConversationId) return;
 
     // Assign unique ID to this request to prevent race conditions
@@ -283,6 +284,7 @@ function App() {
         metadata: null,
         loading: {
           search: false,
+          urlFetch: false,
           stage1: false,
           stage2: false,
           stage3: false,
@@ -310,7 +312,7 @@ function App() {
       // Send message with streaming
       await api.sendMessageStream(
         currentConversationId,
-        { content, webSearch, executionMode },
+        { content, webSearch, executionMode, attachedContent, attachedFiles },
         (eventType, event) => {
           switch (eventType) {
             case 'search_start':
@@ -351,6 +353,34 @@ function App() {
                 };
 
                 messages[messages.length - 1] = updatedLastMsg;
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'url_fetch_start':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  loading: { ...lastMsg.loading, urlFetch: true }
+                };
+                return { ...prev, messages };
+              });
+              break;
+
+            case 'url_fetch_complete':
+              setCurrentConversation((prev) => {
+                const messages = [...prev.messages];
+                const lastMsg = messages[messages.length - 1];
+                messages[messages.length - 1] = {
+                  ...lastMsg,
+                  loading: { ...lastMsg.loading, urlFetch: false },
+                  metadata: {
+                    ...lastMsg.metadata,
+                    fetched_urls: event.data?.urls || [],
+                  }
+                };
                 return { ...prev, messages };
               });
               break;
@@ -632,6 +662,7 @@ function App() {
               aborted: true,
               loading: {
                 search: false,
+                urlFetch: false,
                 stage1: false,
                 stage2: false,
                 stage3: false,
@@ -727,6 +758,7 @@ function App() {
           initialSection={settingsInitialSection}
         />
       )}
+      <AuditLog />
     </div>
   );
 }

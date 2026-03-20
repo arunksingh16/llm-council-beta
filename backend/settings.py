@@ -20,7 +20,8 @@ DEFAULT_ENABLED_PROVIDERS = {
     "ollama": False,
     "groq": False,
     "direct": False,  # Master toggle for all direct connections
-    "custom": False   # Custom OpenAI-compatible endpoint
+    "custom": False,  # Custom OpenAI-compatible endpoint
+    "bedrock": False  # AWS Bedrock
 }
 
 # Default direct provider toggles (individual)
@@ -84,6 +85,11 @@ class Settings(BaseModel):
     mistral_api_key: Optional[str] = None
     deepseek_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
+
+    # AWS Bedrock Settings
+    bedrock_api_key: Optional[str] = None
+    bedrock_region: str = "us-east-1"
+    bedrock_model_ids: List[str] = []  # User-configured model IDs
 
     # Ollama Settings
     ollama_base_url: str = "http://localhost:11434"

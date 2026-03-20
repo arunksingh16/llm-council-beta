@@ -258,6 +258,75 @@ export const api = {
   },
 
   /**
+   * Test AWS Bedrock API key.
+   */
+  async testBedrockKey(apiKey, region, modelIds) {
+    const payload = { api_key: apiKey || '', region: region || 'us-east-1' };
+    if (modelIds) payload.model_ids = modelIds;
+    const response = await fetch(`${API_BASE}/api/settings/test-bedrock`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to test Bedrock API key');
+    }
+    return response.json();
+  },
+
+  /**
+   * Get user-configured Bedrock models.
+   */
+  async getBedrockModels() {
+    const response = await fetch(`${API_BASE}/api/bedrock/models`);
+    if (!response.ok) {
+      throw new Error('Failed to get Bedrock models');
+    }
+    return response.json();
+  },
+
+  /**
+   * Update Bedrock model IDs.
+   */
+  async updateBedrockModels(modelIds) {
+    const response = await fetch(`${API_BASE}/api/bedrock/models`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ model_ids: modelIds }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update Bedrock models');
+    }
+    return response.json();
+  },
+
+  /**
+   * Get audit log entries (for polling).
+   */
+  async getAuditLogs(sinceId = 0) {
+    const response = await fetch(`${API_BASE}/api/audit/logs?since_id=${sinceId}`);
+    if (!response.ok) {
+      throw new Error('Failed to get audit logs');
+    }
+    return response.json();
+  },
+
+  /**
+   * Clear audit log entries.
+   */
+  async clearAuditLogs() {
+    const response = await fetch(`${API_BASE}/api/audit/logs`, { method: 'DELETE' });
+    if (!response.ok) {
+      throw new Error('Failed to clear audit logs');
+    }
+    return response.json();
+  },
+
+  /**
    * Get available models from direct providers.
    */
   async getDirectModels() {
@@ -297,18 +366,41 @@ export const api = {
   },
 
   /**
+   * Upload files and extract text content.
+   * @param {FileList|File[]} files - Files to upload
+   * @returns {Promise<{files: Array<{name: string, content: string|null, size: number}>}>}
+   */
+  async uploadFiles(files) {
+    const formData = new FormData();
+    Array.from(files).forEach(f => formData.append('files', f));
+    const response = await fetch(`${API_BASE}/api/upload-files`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error('Failed to upload files');
+    }
+    return response.json();
+  },
+
+  /**
    * Send a message and receive streaming updates.
    * @param {string} conversationId - The conversation ID
    * @param {Object} options - Message options
    * @param {string} options.content - The message content
    * @param {boolean} options.webSearch - Whether to use web search
    * @param {string} options.executionMode - Execution mode: 'chat_only', 'chat_ranking', or 'full'
+   * @param {string} options.attachedContent - Pre-extracted text from uploaded files
+   * @param {string[]} options.attachedFiles - File names for display
    * @param {function} onEvent - Callback function for each event: (eventType, data) => void
    * @param {AbortSignal} signal - Optional AbortSignal to cancel the request
    * @returns {Promise<void>}
    */
   async sendMessageStream(conversationId, options, onEvent, signal) {
-    const { content, webSearch = false, executionMode = 'full' } = options;
+    const { content, webSearch = false, executionMode = 'full', attachedContent = null, attachedFiles = null } = options;
+    const body = { content, web_search: webSearch, execution_mode: executionMode };
+    if (attachedContent) body.attached_content = attachedContent;
+    if (attachedFiles) body.attached_files = attachedFiles;
     const response = await fetch(
       `${API_BASE}/api/conversations/${conversationId}/message/stream?_t=${Date.now()}`,
       {
@@ -317,7 +409,7 @@ export const api = {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        body: JSON.stringify({ content, web_search: webSearch, execution_mode: executionMode }),
+        body: JSON.stringify(body),
         signal,
         cache: 'no-store',
       }

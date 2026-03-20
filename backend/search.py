@@ -11,6 +11,7 @@ import asyncio
 import yake
 import re
 from datetime import datetime
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -1102,3 +1103,87 @@ async def _search_serper(query: str, max_results: int = 10, full_content_results
     except Exception as e:
         logger.error(f"Serper search error: {e}")
         return "[System Note: Serper search failed. Please try again.]"
+
+
+# =============================================================================
+# URL AUTO-DETECTION AND FETCHING
+# =============================================================================
+
+# URL regex pattern - matches http/https URLs in message text
+_URL_PATTERN = re.compile(r'https?://[^\s<>\]\)\},\"\']+')
+
+# Max URLs to fetch per message
+MAX_URLS_PER_MESSAGE = 5
+
+# Max content per URL (characters)
+MAX_CONTENT_PER_URL = 8000
+
+
+def extract_urls_from_text(text: str) -> List[str]:
+    """Extract unique URLs from a text message."""
+    urls = _URL_PATTERN.findall(text)
+    # Clean trailing punctuation that may have been captured
+    cleaned = []
+    seen = set()
+    for url in urls:
+        # Strip trailing punctuation
+        url = url.rstrip('.,;:!?)')
+        # Skip Jina Reader URLs (internal)
+        if 'r.jina.ai' in url:
+            continue
+        # Validate it's a real URL
+        parsed = urlparse(url)
+        if parsed.scheme and parsed.netloc:
+            normalized = url.lower().rstrip('/')
+            if normalized not in seen:
+                seen.add(normalized)
+                cleaned.append(url)
+    return cleaned[:MAX_URLS_PER_MESSAGE]
+
+
+async def fetch_urls_from_message(message: str) -> tuple:
+    """
+    Detect URLs in a user message and fetch their content via Jina Reader.
+
+    Args:
+        message: The user's message text
+
+    Returns:
+        Tuple of (found_urls: list[str], formatted_context: str)
+        Returns ([], "") if no URLs found or all fetches fail.
+    """
+    urls = extract_urls_from_text(message)
+    if not urls:
+        return ([], "")
+
+    logger.info(f"Found {len(urls)} URLs in message: {urls}")
+
+    async def fetch_one(url: str):
+        content = await _fetch_with_jina(url, timeout=25.0)
+        return (url, content)
+
+    tasks = [fetch_one(url) for url in urls]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    context_parts = []
+    fetched_urls = []
+    for result in results:
+        if isinstance(result, Exception):
+            logger.warning(f"URL fetch failed: {result}")
+            continue
+        url, content = result
+        if content:
+            # Truncate per-URL content
+            truncated = content[:MAX_CONTENT_PER_URL]
+            if len(content) > MAX_CONTENT_PER_URL:
+                truncated += "\n... [content truncated]"
+            context_parts.append(f"[Content from: {url}]\n{truncated}")
+            fetched_urls.append(url)
+        else:
+            logger.warning(f"No content returned for URL: {url}")
+
+    if not context_parts:
+        return (urls, "")
+
+    formatted = "The user's message references the following URLs. Their content has been fetched for you:\n\n" + "\n\n".join(context_parts)
+    return (fetched_urls, formatted)

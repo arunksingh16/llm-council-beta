@@ -8,6 +8,7 @@ import googleIcon from '../../assets/icons/google.svg';
 import mistralIcon from '../../assets/icons/mistral.svg';
 import deepseekIcon from '../../assets/icons/deepseek.svg';
 import customEndpointIcon from '../../assets/icons/openai-compatible.svg';
+import bedrockIcon from '../../assets/icons/bedrock.svg';
 
 const PROVIDER_ICONS = {
     openai: openaiIcon,
@@ -23,6 +24,22 @@ const DIRECT_PROVIDERS = [
     { id: 'google', name: 'Google', key: 'google_api_key' },
     { id: 'mistral', name: 'Mistral', key: 'mistral_api_key' },
     { id: 'deepseek', name: 'DeepSeek', key: 'deepseek_api_key' },
+];
+
+const BEDROCK_REGIONS = [
+    'us-east-1',
+    'us-east-2',
+    'us-west-2',
+    'ap-northeast-1',
+    'ap-southeast-1',
+    'ap-southeast-2',
+    'ap-south-1',
+    'ca-central-1',
+    'eu-central-1',
+    'eu-west-1',
+    'eu-west-2',
+    'eu-west-3',
+    'sa-east-1',
 ];
 
 export default function ProviderSettings({
@@ -63,7 +80,19 @@ export default function ProviderSettings({
     handleTestCustomEndpoint,
     isTestingCustomEndpoint,
     customEndpointTestResult,
-    customEndpointModels
+    customEndpointModels,
+    // AWS Bedrock
+    bedrockApiKey,
+    setBedrockApiKey,
+    bedrockRegion,
+    setBedrockRegion,
+    handleTestBedrock,
+    isTestingBedrock,
+    bedrockTestResult,
+    bedrockModels,
+    bedrockModelIds,
+    setBedrockModelIds,
+    handleSaveBedrockModels
 }) {
     return (
         <section className="settings-section">
@@ -86,22 +115,6 @@ export default function ProviderSettings({
                         value={openrouterApiKey}
                         onChange={(e) => {
                             setOpenrouterApiKey(e.target.value);
-                            // Reset test result on change is handled by parent usually, but here we might need a callback or just let parent handle it via the setter wrapper if needed.
-                            // In Settings.jsx: setOpenrouterTestResult(null) was called.
-                            // We should probably pass a wrapper or just accept that the parent setter doesn't clear the error.
-                            // Actually, looking at Settings.jsx, the onChange did: setOpenrouterApiKey(...); setOpenrouterTestResult(null);
-                            // So we need to replicate that logic or pass a specific handler.
-                            // For simplicity, let's assume the parent passes a setter that *just* sets the key, and we might need a separate prop for clearing error?
-                            // No, simpler: The parent passed `setOpenrouterApiKey`. If we want to clear error, we need to do it here?
-                            // Wait, the prop `setOpenrouterApiKey` is likely just the state setter.
-                            // I should probably accept `onOpenrouterKeyChange` instead of raw setter if I want to bundle logic.
-                            // BUT, to keep it "dumb", I'll just use the props as is, but I can't clear the error if I don't have the error setter.
-                            // Let's check the props again. I didn't pass `setOpenrouterTestResult`.
-                            // I should probably pass `onOpenrouterChange` which does both.
-                            // OR, I can just pass `setOpenrouterTestResult` as a prop too.
-                            // Let's pass `setOpenrouterTestResult` etc. to be safe, or better, make the props `onChange...`.
-                            // I'll stick to the raw setters for now but I'll add `setOpenrouterTestResult` to the props list to be safe, OR just ignore clearing it (minor UX regression).
-                            // BETTER: I'll define `handleOpenrouterChange` locally if I have the setters.
                         }}
                         className={settings?.openrouter_api_key_set && !openrouterApiKey ? 'key-configured' : ''}
                     />
@@ -139,7 +152,6 @@ export default function ProviderSettings({
                         value={groqApiKey}
                         onChange={(e) => {
                             setGroqApiKey(e.target.value);
-                            // setGroqTestResult(null); // Missing prop
                         }}
                         className={settings?.groq_api_key_set && !groqApiKey ? 'key-configured' : ''}
                     />
@@ -177,7 +189,6 @@ export default function ProviderSettings({
                         value={ollamaBaseUrl}
                         onChange={(e) => {
                             setOllamaBaseUrl(e.target.value);
-                            // setOllamaTestResult(null); // Missing prop
                         }}
                     />
                     <button
@@ -255,6 +266,116 @@ export default function ProviderSettings({
                 ))}
             </div>
 
+            {/* AWS Bedrock */}
+            <div className="subsection" style={{ marginTop: '24px' }}>
+                <h4>AWS Bedrock</h4>
+                <p className="subsection-description" style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '16px' }}>
+                    Connect to AWS Bedrock using an API key (bearer token). Add model IDs manually — they are region-specific.
+                </p>
+                <form className="api-key-section" onSubmit={e => e.preventDefault()}>
+                    <label>
+                        <img src={bedrockIcon} alt="" className="provider-icon" />
+                        Bedrock API Key
+                    </label>
+                    <div className="api-key-input-row">
+                        <input
+                            type="password"
+                            placeholder={settings?.bedrock_api_key_set ? '••••••••••••••••' : 'Enter Bedrock API key'}
+                            value={bedrockApiKey}
+                            onChange={(e) => setBedrockApiKey(e.target.value)}
+                            className={settings?.bedrock_api_key_set && !bedrockApiKey ? 'key-configured' : ''}
+                        />
+                    </div>
+
+                    <label style={{ marginTop: '12px' }}>Region</label>
+                    <div className="api-key-input-row">
+                        <select
+                            value={bedrockRegion}
+                            onChange={(e) => setBedrockRegion(e.target.value)}
+                            className="settings-select"
+                            style={{ flex: 1 }}
+                        >
+                            {BEDROCK_REGIONS.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                            ))}
+                        </select>
+                        <button
+                            className="test-button"
+                            onClick={handleTestBedrock}
+                            disabled={(!bedrockApiKey && !settings?.bedrock_api_key_set) || isTestingBedrock}
+                        >
+                            {isTestingBedrock ? 'Testing...' : (settings?.bedrock_api_key_set && !bedrockApiKey ? 'Retest' : 'Test')}
+                        </button>
+                    </div>
+
+                    {settings?.bedrock_api_key_set && !bedrockApiKey && (
+                        <div className="key-status set">
+                            ✓ API key configured ({settings?.bedrock_region || 'us-east-1'})
+                            {bedrockModels.length > 0 && ` · ${bedrockModels.length} model(s) configured`}
+                        </div>
+                    )}
+                    {bedrockTestResult && (
+                        <div className={`test-result ${bedrockTestResult.success ? 'success' : 'error'}`}>
+                            {bedrockTestResult.message}
+                        </div>
+                    )}
+
+                    {/* Model IDs */}
+                    <label style={{ marginTop: '16px' }}>Model IDs</label>
+                    <p className="subsection-description" style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', marginTop: '2px' }}>
+                        Add Bedrock model IDs (e.g. <code style={{ fontSize: '11px', background: 'rgba(255,255,255,0.05)', padding: '1px 4px', borderRadius: '3px' }}>us.anthropic.claude-3-5-haiku-20241022-v1:0</code>)
+                    </p>
+                    {(bedrockModelIds || []).map((mid, idx) => (
+                        <div key={idx} className="api-key-input-row" style={{ marginBottom: '6px' }}>
+                            <input
+                                type="text"
+                                placeholder="e.g. us.anthropic.claude-3-5-haiku-20241022-v1:0"
+                                value={mid}
+                                onChange={(e) => {
+                                    const updated = [...bedrockModelIds];
+                                    updated[idx] = e.target.value;
+                                    setBedrockModelIds(updated);
+                                }}
+                                style={{ fontFamily: 'var(--font-code, monospace)', fontSize: '13px' }}
+                            />
+                            <button
+                                type="button"
+                                className="test-button"
+                                style={{ minWidth: '36px', padding: '0 8px', color: '#ef4444' }}
+                                onClick={() => {
+                                    const updated = bedrockModelIds.filter((_, i) => i !== idx);
+                                    setBedrockModelIds(updated);
+                                }}
+                                title="Remove model"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                    ))}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                        <button
+                            type="button"
+                            className="reset-defaults-button"
+                            onClick={() => setBedrockModelIds([...(bedrockModelIds || []), ''])}
+                        >
+                            + Add Model
+                        </button>
+                        <button
+                            type="button"
+                            className="test-button"
+                            onClick={handleSaveBedrockModels}
+                            disabled={!bedrockModelIds || bedrockModelIds.every(m => !m.trim())}
+                        >
+                            Save Models
+                        </button>
+                    </div>
+
+                    <p className="api-key-hint">
+                        Get key at <a href="https://console.aws.amazon.com/bedrock/" target="_blank" rel="noopener noreferrer">AWS Bedrock Console</a>
+                    </p>
+                </form>
+            </div>
+
             {/* Custom OpenAI-compatible Endpoint */}
             <div className="subsection" style={{ marginTop: '24px' }}>
                 <h4>Custom OpenAI-Compatible Endpoint</h4>
@@ -273,7 +394,6 @@ export default function ProviderSettings({
                             value={customEndpointName}
                             onChange={(e) => {
                                 setCustomEndpointName(e.target.value);
-                                // setCustomEndpointTestResult(null); // Missing prop
                             }}
                         />
                     </div>
@@ -286,7 +406,6 @@ export default function ProviderSettings({
                             value={customEndpointUrl}
                             onChange={(e) => {
                                 setCustomEndpointUrl(e.target.value);
-                                // setCustomEndpointTestResult(null); // Missing prop
                             }}
                         />
                     </div>
@@ -299,7 +418,6 @@ export default function ProviderSettings({
                             value={customEndpointApiKey}
                             onChange={(e) => {
                                 setCustomEndpointApiKey(e.target.value);
-                                // setCustomEndpointTestResult(null); // Missing prop
                             }}
                         />
                         <button

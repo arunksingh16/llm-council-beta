@@ -3,6 +3,7 @@
 from typing import List, Dict, Any, Tuple
 import asyncio
 import logging
+import re
 from . import openrouter
 from . import ollama_client
 from .config import get_council_models, get_chairman_model
@@ -10,6 +11,67 @@ from .search import perform_web_search, SearchProvider
 from .settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def detect_query_type(query: str) -> str:
+    """
+    Detect the type of query to adapt prompts accordingly.
+
+    Returns one of: 'factual', 'code', 'analysis', 'creative', 'opinion', 'howto'
+    """
+    from .prompts import QUERY_TYPE_PATTERNS
+
+    query_lower = query.lower()
+
+    # Score each type based on keyword matches
+    scores = {}
+    for qtype, patterns in QUERY_TYPE_PATTERNS.items():
+        score = 0
+        for pattern in patterns:
+            # Use word boundary matching for short patterns to avoid false positives
+            if len(pattern) <= 4:
+                if re.search(r'\b' + re.escape(pattern) + r'\b', query_lower):
+                    score += 1
+            elif pattern in query_lower:
+                # Longer patterns are more specific, give them more weight
+                score += len(pattern.split())
+        scores[qtype] = score
+
+    # Check for code blocks (strong signal)
+    if '```' in query:
+        scores['code'] = scores.get('code', 0) + 5
+
+    # Filter out zero scores
+    nonzero = {k: v for k, v in scores.items() if v > 0}
+
+    if not nonzero:
+        return 'factual'  # Default
+
+    best_type = max(nonzero, key=nonzero.get)
+
+    # Require a minimum threshold to avoid weak matches
+    if nonzero[best_type] < 2:
+        return 'factual'
+
+    logger.info(f"Query type detected: {best_type} (scores: {nonzero})")
+    return best_type
+
+
+def assign_roles(models: List[str]) -> Dict[str, Dict[str, str]]:
+    """
+    Assign analyst roles to council models.
+    Cycles through available roles if more models than roles.
+
+    Returns dict mapping model_id -> role dict {id, name, instruction}
+    """
+    from .prompts import ANALYST_ROLES
+
+    assignments = {}
+    for i, model in enumerate(models):
+        role = ANALYST_ROLES[i % len(ANALYST_ROLES)]
+        assignments[model] = role
+
+    return assignments
 
 
 from .providers.openai import OpenAIProvider
@@ -21,6 +83,7 @@ from .providers.openrouter import OpenRouterProvider
 from .providers.ollama import OllamaProvider
 from .providers.groq import GroqProvider
 from .providers.custom_openai import CustomOpenAIProvider
+from .providers.bedrock import BedrockProvider
 
 # Initialize providers
 PROVIDERS = {
@@ -33,6 +96,7 @@ PROVIDERS = {
     "openrouter": OpenRouterProvider(),
     "ollama": OllamaProvider(),
     "custom": CustomOpenAIProvider(),
+    "bedrock": BedrockProvider(),
 }
 
 def get_provider_for_model(model_id: str) -> Any:
@@ -85,6 +149,7 @@ async def query_models_parallel(models: List[str], messages: List[Dict[str, str]
 async def stage1_collect_responses(user_query: str, search_context: str = "", request: Any = None) -> Any:
     """
     Stage 1: Collect individual responses from all council models.
+    Each model receives a role-specialized, query-adaptive prompt.
 
     Args:
         user_query: The user's question
@@ -93,44 +158,60 @@ async def stage1_collect_responses(user_query: str, search_context: str = "", re
 
     Yields:
         - First yield: total_models (int)
-        - Subsequent yields: Individual model results (dict)
+        - Subsequent yields: Individual model results (dict) with 'role' field
     """
     settings = get_settings()
+
+    # Detect query type for adaptive prompting
+    query_type = detect_query_type(user_query)
+    from .prompts import QUERY_TYPES, STAGE1_PROMPT_DEFAULT, STAGE1_SEARCH_CONTEXT_TEMPLATE
+    from .prompts import EVIDENCE_INSTRUCTION_WITH_CONTEXT, EVIDENCE_INSTRUCTION_NO_CONTEXT
+
+    query_type_info = QUERY_TYPES.get(query_type, QUERY_TYPES["factual"])
+    query_type_guidance = f"QUERY TYPE: {query_type_info['name']}\n{query_type_info['guidance']}"
 
     # Build search context block if search results provided
     search_context_block = ""
     if search_context:
-        from .prompts import STAGE1_SEARCH_CONTEXT_TEMPLATE
         search_context_block = STAGE1_SEARCH_CONTEXT_TEMPLATE.format(search_context=search_context)
 
-    # Use customizable Stage 1 prompt
-    try:
-        prompt_template = settings.stage1_prompt
-        if not prompt_template:
-            from .prompts import STAGE1_PROMPT_DEFAULT
-            prompt_template = STAGE1_PROMPT_DEFAULT
+    evidence_instruction = EVIDENCE_INSTRUCTION_WITH_CONTEXT if search_context else EVIDENCE_INSTRUCTION_NO_CONTEXT
 
-        prompt = prompt_template.format(
-            user_query=user_query,
-            search_context_block=search_context_block
-        )
-    except (KeyError, AttributeError, TypeError) as e:
-        logger.warning(f"Error formatting Stage 1 prompt: {e}. Using fallback.")
-        prompt = f"{search_context_block}Question: {user_query}" if search_context_block else user_query
-
-    messages = [{"role": "user", "content": prompt}]
-
-    # Prepare tasks for all models
+    # Prepare models and assign roles
     models = get_council_models()
-    
+    role_assignments = assign_roles(models)
+
     # Yield total count first
     yield len(models)
 
     council_temp = settings.council_temperature
 
+    # Build per-model prompts with role specialization
+    def build_prompt_for_model(model_id: str) -> List[Dict[str, str]]:
+        role = role_assignments[model_id]
+
+        try:
+            prompt_template = settings.stage1_prompt
+            if not prompt_template:
+                prompt_template = STAGE1_PROMPT_DEFAULT
+
+            prompt = prompt_template.format(
+                user_query=user_query,
+                search_context_block=search_context_block,
+                role_instruction=role["instruction"],
+                query_type_guidance=query_type_guidance,
+                evidence_instruction=evidence_instruction,
+            )
+        except (KeyError, AttributeError, TypeError) as e:
+            logger.warning(f"Error formatting Stage 1 prompt for {model_id}: {e}. Using fallback.")
+            prompt = f"{role['instruction']}\n\n{search_context_block}Question: {user_query}" if search_context_block else f"{role['instruction']}\n\nQuestion: {user_query}"
+
+        return [{"role": "user", "content": prompt}]
+
     async def _query_safe(m: str):
         try:
-            return m, await query_model(m, messages, temperature=council_temp)
+            msgs = build_prompt_for_model(m)
+            return m, await query_model(m, msgs, temperature=council_temp)
         except Exception as e:
             return m, {"error": True, "error_message": str(e)}
 
@@ -157,13 +238,16 @@ async def stage1_collect_responses(user_query: str, search_context: str = "", re
                     
                     result = None
                     if response is not None:
+                        role = role_assignments.get(model, {})
                         if response.get('error'):
                             # Include failed models with error info
                             result = {
                                 "model": model,
                                 "response": None,
                                 "error": response.get('error'),
-                                "error_message": response.get('error_message', 'Unknown error')
+                                "error_message": response.get('error_message', 'Unknown error'),
+                                "role": role.get("name", "Analyst"),
+                                "role_id": role.get("id", ""),
                             }
                         else:
                             # Successful response - ensure content is always a string
@@ -174,7 +258,9 @@ async def stage1_collect_responses(user_query: str, search_context: str = "", re
                             result = {
                                 "model": model,
                                 "response": content,
-                                "error": None
+                                "error": None,
+                                "role": role.get("name", "Analyst"),
+                                "role_id": role.get("id", ""),
                             }
                     
                     if result:
@@ -348,8 +434,9 @@ async def stage3_synthesize_final(
     settings = get_settings()
 
     # Build comprehensive context for chairman (only include successful responses)
+    # Include role labels so the Chairman knows each analyst's perspective
     stage1_text = "\n\n".join([
-        f"Model: {result['model']}\nResponse: {result.get('response', 'No response')}"
+        f"Model: {result['model']} (Role: {result.get('role', 'Analyst')})\nResponse: {result.get('response', 'No response')}"
         for result in stage1_results
         if result.get('response') is not None
     ])
@@ -390,7 +477,7 @@ async def stage3_synthesize_final(
     if is_default_prompt:
         # If using default, split into System (Persona) and User (Data) for better adherence at low temp
         messages = [
-            {"role": "system", "content": "You are the Chairman of an LLM Council. Your task is to synthesize the provided model responses into a single, comprehensive answer."},
+            {"role": "system", "content": "You are the Chairman of an LLM Council. Your role is to critically evaluate analyst responses, resolve conflicts, correct errors, and produce the best possible answer — not a diplomatic merge."},
             {"role": "user", "content": chairman_prompt}
         ]
     else:

@@ -46,6 +46,14 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
   const [isTestingCustomEndpoint, setIsTestingCustomEndpoint] = useState(false);
   const [customEndpointTestResult, setCustomEndpointTestResult] = useState(null);
 
+  // AWS Bedrock State
+  const [bedrockApiKey, setBedrockApiKey] = useState('');
+  const [bedrockRegion, setBedrockRegion] = useState('us-east-1');
+  const [bedrockModelIds, setBedrockModelIds] = useState([]);
+  const [bedrockModels, setBedrockModels] = useState([]);
+  const [isTestingBedrock, setIsTestingBedrock] = useState(false);
+  const [bedrockTestResult, setBedrockTestResult] = useState(null);
+
   // Direct Provider State
   const [directKeys, setDirectKeys] = useState({
     openai_api_key: '',
@@ -189,7 +197,7 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
   ]);
 
   // Helper to determine if filters need to switch based on availability
-  const isRemoteAvailable = enabledProviders.openrouter || enabledProviders.direct || enabledProviders.groq || enabledProviders.custom;
+  const isRemoteAvailable = enabledProviders.openrouter || enabledProviders.direct || enabledProviders.groq || enabledProviders.custom || enabledProviders.bedrock;
   const isLocalAvailable = enabledProviders.ollama;
 
   const getNewFilter = (currentFilter) => {
@@ -384,6 +392,10 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       if (data.chairman_filter) {
         setChairmanFilter(data.chairman_filter);
       }
+      // Bedrock Settings
+      setBedrockRegion(data.bedrock_region || 'us-east-1');
+      setBedrockModelIds(data.bedrock_model_ids || []);
+
       // Ollama Settings
       setOllamaBaseUrl(data.ollama_base_url || 'http://localhost:11434');
 
@@ -415,6 +427,9 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       loadOllamaModels(data.ollama_base_url || 'http://localhost:11434');
       if (data.custom_endpoint_url) {
         loadCustomEndpointModels();
+      }
+      if (data.bedrock_api_key_set) {
+        loadBedrockModels();
       }
 
     } catch (err) {
@@ -472,6 +487,76 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       }
     } catch (err) {
       console.warn('Failed to load custom endpoint models:', err);
+    }
+  };
+
+  const handleSaveBedrockModels = async () => {
+    try {
+      const filtered = (bedrockModelIds || []).filter(m => m.trim());
+      await api.updateBedrockModels(filtered);
+      setBedrockModelIds(filtered);
+      // Reload models for council selection
+      await loadBedrockModels();
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save Bedrock models:', err);
+    }
+  };
+
+  const loadBedrockModels = async () => {
+    try {
+      const data = await api.getBedrockModels();
+      if (data.models && data.models.length > 0) {
+        const sorted = data.models.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        setBedrockModels(sorted);
+      }
+    } catch (err) {
+      console.warn('Failed to load Bedrock models:', err);
+    }
+  };
+
+  const handleTestBedrock = async () => {
+    if (!bedrockApiKey && !settings.bedrock_api_key_set) {
+      setBedrockTestResult({ success: false, message: 'Please enter an API key first' });
+      return;
+    }
+    const filteredModels = (bedrockModelIds || []).filter(m => m.trim());
+    if (filteredModels.length === 0) {
+      setBedrockTestResult({ success: false, message: 'Add at least one model ID first, then test.' });
+      return;
+    }
+    setIsTestingBedrock(true);
+    setBedrockTestResult(null);
+    try {
+      const keyToTest = bedrockApiKey || "";
+      const result = await api.testBedrockKey(keyToTest, bedrockRegion, filteredModels);
+      setBedrockTestResult(result);
+
+      // Auto-save if validation succeeds
+      if (result.success && bedrockApiKey) {
+        await api.updateSettings({
+          bedrock_api_key: bedrockApiKey,
+          bedrock_region: bedrockRegion
+        });
+        setBedrockApiKey(''); // Clear input after save
+
+        // Reload settings
+        await loadSettings();
+
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      } else if (result.success && !bedrockApiKey) {
+        // Region change only - save region
+        await api.updateSettings({ bedrock_region: bedrockRegion });
+        await loadSettings();
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      }
+    } catch (err) {
+      setBedrockTestResult({ success: false, message: 'Test failed' });
+    } finally {
+      setIsTestingBedrock(false);
     }
   };
 
@@ -865,7 +950,7 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
 
     // Determine best default filter based on what's available
     let defaultFilter = 'remote';
-    const isRemoteAvailable = enabledProviders.openrouter || enabledProviders.direct || enabledProviders.groq || enabledProviders.custom;
+    const isRemoteAvailable = enabledProviders.openrouter || enabledProviders.direct || enabledProviders.groq || enabledProviders.custom || enabledProviders.bedrock;
     const isLocalAvailable = enabledProviders.ollama && ollamaAvailableModels.length > 0;
 
     if (!isRemoteAvailable && isLocalAvailable) {
@@ -1337,6 +1422,11 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
       models.push(...customEndpointModels);
     }
 
+    // Add Bedrock models if enabled and configured
+    if (enabledProviders.bedrock && bedrockModels.length > 0) {
+      models.push(...bedrockModels);
+    }
+
     // Deduplicate by model ID (prefer direct connections over OpenRouter for same model)
     // Since direct models are added last, always set to overwrite earlier entries
     const uniqueModels = new Map();
@@ -1351,6 +1441,7 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
     ollamaAvailableModels,
     directAvailableModels,
     customEndpointModels,
+    bedrockModels,
     directProviderToggles,
     directKeys,
     settings
@@ -1492,6 +1583,18 @@ export default function Settings({ onClose, ollamaStatus, onRefreshOllama, initi
                 isTestingCustomEndpoint={isTestingCustomEndpoint}
                 customEndpointTestResult={customEndpointTestResult}
                 customEndpointModels={customEndpointModels}
+                // AWS Bedrock
+                bedrockApiKey={bedrockApiKey}
+                setBedrockApiKey={(val) => { setBedrockApiKey(val); setBedrockTestResult(null); }}
+                bedrockRegion={bedrockRegion}
+                setBedrockRegion={(val) => { setBedrockRegion(val); setBedrockTestResult(null); }}
+                handleTestBedrock={handleTestBedrock}
+                isTestingBedrock={isTestingBedrock}
+                bedrockTestResult={bedrockTestResult}
+                bedrockModels={bedrockModels}
+                bedrockModelIds={bedrockModelIds}
+                setBedrockModelIds={setBedrockModelIds}
+                handleSaveBedrockModels={handleSaveBedrockModels}
               />
             )}
 

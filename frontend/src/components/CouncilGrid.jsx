@@ -12,6 +12,7 @@ import deepseekLogo from '../assets/icons/deepseek.svg';
 import groqLogo from '../assets/icons/groq.svg';
 import openrouterLogo from '../assets/icons/openrouter.svg';
 import customLogo from '../assets/icons/openai-compatible.svg';
+import bedrockLogo from '../assets/icons/bedrock.svg';
 
 const PROVIDER_CONFIG = {
     openai: { color: '#10a37f', label: 'OpenAI', logo: openaiLogo },
@@ -23,6 +24,7 @@ const PROVIDER_CONFIG = {
     deepseek: { color: '#4e61e6', label: 'DeepSeek', logo: deepseekLogo },
     openrouter: { color: '#7f5af0', label: 'OpenRouter', logo: openrouterLogo },
     custom: { color: '#06b6d4', label: 'Custom', logo: customLogo },
+    bedrock: { color: '#FF9900', label: 'Bedrock', logo: bedrockLogo },
     default: { color: '#888888', label: 'Model', logo: null, icon: '🤖' }
 };
 
@@ -32,6 +34,7 @@ const getProviderInfo = (modelId) => {
 
     // Check for provider prefixes FIRST (order matters!)
     if (id.startsWith('custom:')) return PROVIDER_CONFIG.custom;
+    if (id.startsWith('bedrock:')) return PROVIDER_CONFIG.bedrock;
     if (id.startsWith('ollama:')) return PROVIDER_CONFIG.ollama;
     if (id.startsWith('groq:')) return PROVIDER_CONFIG.groq;
 

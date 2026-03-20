@@ -419,6 +419,170 @@
   display: none;
 }
 
+/* File Input Hidden */
+.file-input-hidden {
+  display: none;
+}
+
+/* Attachment Toggle Button */
+.attachment-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(148, 163, 184, 0.1);
+  margin-bottom: 6px;
+  position: relative;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  opacity: 0.6;
+}
+
+.attachment-toggle:hover {
+  background: rgba(148, 163, 184, 0.2);
+  opacity: 0.8;
+}
+
+.attachment-toggle.active {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+  opacity: 1;
+}
+
+.attachment-icon {
+  font-size: 16px;
+  transition: all 0.2s;
+}
+
+.attachment-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  border-top-color: var(--accent-stage1);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.attachment-toggle::after {
+  content: "Attach Files";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: var(--bg-dark);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  border: 1px solid var(--border-glass);
+}
+
+.attachment-toggle:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Attached Files Row */
+.attached-files-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px 4px;
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 16px;
+  padding: 3px 8px 3px 6px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+}
+
+.file-chip-icon {
+  font-size: 12px;
+}
+
+.file-chip-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-chip-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.file-chip-remove:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+/* URL Fetch Indicator */
+.url-fetch-indicator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 8px;
+  font-size: 0.78rem;
+}
+
+.url-fetch-label {
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+}
+
+.url-fetch-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.url-chip {
+  display: inline-block;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  color: var(--accent-stage1);
+  text-decoration: none;
+  font-family: var(--font-code);
+  transition: all 0.2s;
+}
+
+.url-chip:hover {
+  background: rgba(59, 130, 246, 0.25);
+  text-decoration: none;
+}
+
 /* Scroll to Bottom */
 .scroll-bottom-btn {
   position: absolute;

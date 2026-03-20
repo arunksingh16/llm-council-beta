@@ -1,6 +1,7 @@
 import StageTimer from './StageTimer';
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import SearchContext from './SearchContext';
 import Stage1, { Stage1Skeleton } from './Stage1';
 import Stage2, { Stage2Skeleton } from './Stage2';
@@ -25,6 +26,9 @@ export default function ChatInterface({
 }) {
     const [input, setInput] = useState('');
     const [webSearch, setWebSearch] = useState(false);
+    const [attachedFiles, setAttachedFiles] = useState([]); // [{name, content, size}]
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef(null);
     const messagesEndRef = useRef(null);
     const messagesContainerRef = useRef(null);
 
@@ -47,11 +51,41 @@ export default function ChatInterface({
         }
     }, [conversation]);
 
+    const handleFileSelect = async (e) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        setIsUploading(true);
+        try {
+            const result = await api.uploadFiles(files);
+            const newFiles = result.files.filter(f => f.content !== null);
+            setAttachedFiles(prev => [...prev, ...newFiles].slice(0, 5));
+        } catch (err) {
+            console.error('File upload failed:', err);
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const removeAttachedFile = (index) => {
+        setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
     const handleSubmit = (e) => {
         e.preventDefault();
         if (input.trim() && !isLoading) {
-            onSendMessage(input, webSearch);
+            // Build attached content string from files
+            let attachedContent = null;
+            let attachedFileNames = null;
+            if (attachedFiles.length > 0) {
+                attachedContent = attachedFiles
+                    .map(f => `[File: ${f.name}]\n${f.content}`)
+                    .join('\n\n');
+                attachedFileNames = attachedFiles.map(f => f.name);
+            }
+            onSendMessage(input, webSearch, attachedContent, attachedFileNames);
             setInput('');
+            setAttachedFiles([]);
         }
     };
 
@@ -108,7 +142,7 @@ export default function ChatInterface({
                             <div className="message-content">
                                 {msg.role === 'user' ? (
                                     <div className="markdown-content">
-                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                                     </div>
                                 ) : (
                                     <>
@@ -127,6 +161,28 @@ export default function ChatInterface({
                                             </div>
                                         )}
 
+                                        {/* URL Fetch Loading */}
+                                        {msg.loading?.urlFetch && (
+                                            <div className="stage-loading">
+                                                <div className="spinner"></div>
+                                                <span>🔗 Fetching referenced URLs...</span>
+                                            </div>
+                                        )}
+
+                                        {/* URL Fetch Result */}
+                                        {msg.metadata?.fetched_urls && msg.metadata.fetched_urls.length > 0 && (
+                                            <div className="url-fetch-indicator">
+                                                <span className="url-fetch-label">🔗 Fetched {msg.metadata.fetched_urls.length} URL{msg.metadata.fetched_urls.length > 1 ? 's' : ''}:</span>
+                                                <div className="url-fetch-list">
+                                                    {msg.metadata.fetched_urls.map((url, i) => (
+                                                        <a key={i} className="url-chip" href={url} target="_blank" rel="noopener noreferrer">
+                                                            {new URL(url).hostname}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Search Context */}
                                         {msg.metadata?.search_context && (
                                             <SearchContext
@@ -137,7 +193,7 @@ export default function ChatInterface({
                                         )}
 
                                         {/* Stage 1: Council Grid Visualization */}
-                                        {(msg.loading?.stage1 || (msg.stage1 && !msg.stage2)) && (
+                                        {(msg.loading?.stage1 || msg.stage1) && (
                                             <div className="stage-container">
                                                 <div className="stage-header">
                                                     <h3>Stage 1: Council Deliberation</h3>
@@ -161,7 +217,7 @@ export default function ChatInterface({
                                         )}
 
                                         {/* Stage 1 Results (Accordion/List - kept for detail view) */}
-                                        {(msg.loading?.stage1 || (msg.stage1 && !msg.stage2)) ? (
+                                        {(msg.loading?.stage1 || msg.stage1) ? (
                                             msg.loading?.stage1 && !msg.stage1 ? (
                                                 <Stage1Skeleton />
                                             ) : msg.stage1 && (
@@ -233,6 +289,24 @@ export default function ChatInterface({
                     </div>
                 ) : (
                     <form className="input-container" onSubmit={handleSubmit}>
+                        {/* Attached Files Chips */}
+                        {attachedFiles.length > 0 && (
+                            <div className="attached-files-row">
+                                {attachedFiles.map((f, i) => (
+                                    <span key={i} className="file-chip">
+                                        <span className="file-chip-icon">📎</span>
+                                        <span className="file-chip-name">{f.name}</span>
+                                        <button
+                                            type="button"
+                                            className="file-chip-remove"
+                                            onClick={() => removeAttachedFile(i)}
+                                            title="Remove file"
+                                        >×</button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
                         <div className="input-row-top">
                             <label className={`search-toggle ${webSearch ? 'active' : ''}`} title="Toggle Web Search">
                                 <input
@@ -245,6 +319,28 @@ export default function ChatInterface({
                                 <span className="search-icon">🌐</span>
                                 {webSearch && <span className="search-label">Search On</span>}
                             </label>
+
+                            <button
+                                type="button"
+                                className={`attachment-toggle ${attachedFiles.length > 0 ? 'active' : ''}`}
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isLoading || isUploading}
+                                title="Attach files"
+                            >
+                                {isUploading ? (
+                                    <span className="attachment-spinner"></span>
+                                ) : (
+                                    <span className="attachment-icon">📎</span>
+                                )}
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                multiple
+                                className="file-input-hidden"
+                                onChange={handleFileSelect}
+                                accept=".txt,.md,.py,.js,.ts,.jsx,.tsx,.css,.html,.json,.csv,.xml,.yaml,.yml,.toml,.sh,.sql,.pdf,.rs,.go,.java,.c,.cpp,.h,.rb,.swift,.kt,.log,.env,.ini,.cfg"
+                            />
 
                             <textarea
                                 className="message-input"

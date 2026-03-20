@@ -40,11 +40,11 @@ export default function PromptSettings({
             <div className="prompt-editor">
                 {activePromptTab === 'stage1' && (
                     <div className="prompt-content">
-                        <label>Stage 1: Initial Response</label>
+                        <label>Stage 1: Role-Specialized Response</label>
                         <p className="section-description" style={{ marginBottom: '10px' }}>
-                            Guides council members' initial responses to user questions.
+                            Each council member receives a unique analyst role (Accuracy, Deep Dive, Practical, Critical, Synthesis, Clarity) and query-adaptive guidance.
                         </p>
-                        <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{search_context_block}'}</code></p>
+                        <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{search_context_block}'}</code>, <code>{'{role_instruction}'}</code>, <code>{'{query_type_guidance}'}</code>, <code>{'{evidence_instruction}'}</code></p>
                         <textarea
                             value={prompts.stage1_prompt}
                             onChange={(e) => handlePromptChange('stage1_prompt', e.target.value)}
@@ -82,7 +82,7 @@ export default function PromptSettings({
                         </div>
 
                         <p className="section-description" style={{ marginBottom: '10px' }}>
-                            Instructs models how to rank and evaluate peer responses.
+                            Rubric-based peer evaluation with scoring criteria (Accuracy, Completeness, Reasoning, Sources, Clarity).
                         </p>
                         <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{responses_text}'}</code>, <code>{'{search_context_block}'}</code></p>
                         <textarea
@@ -95,9 +95,9 @@ export default function PromptSettings({
                 )}
                 {activePromptTab === 'stage3' && (
                     <div className="prompt-content">
-                        <label>Stage 3: Chairman Synthesis</label>
+                        <label>Stage 3: Adversarial Chairman</label>
                         <p className="section-description" style={{ marginBottom: '10px' }}>
-                            Directs the chairman to synthesize a final answer from all inputs.
+                            The Chairman critically evaluates responses, resolves conflicts, flags errors, and marks confidence levels — not a diplomatic merge.
                         </p>
                         <p className="prompt-help">Variables: <code>{'{user_query}'}</code>, <code>{'{stage1_text}'}</code>, <code>{'{stage2_text}'}</code>, <code>{'{search_context_block}'}</code></p>
                         <textarea

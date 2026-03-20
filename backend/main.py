@@ -1,6 +1,6 @@
 """FastAPI backend for LLM Council."""
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -12,10 +12,15 @@ import asyncio
 
 from . import storage
 from .council import generate_conversation_title, generate_search_query, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings, PROVIDERS
-from .search import perform_web_search, SearchProvider
+from .search import perform_web_search, SearchProvider, fetch_urls_from_message
+from .file_extract import extract_text
 from .settings import get_settings, update_settings, Settings, DEFAULT_COUNCIL_MODELS, DEFAULT_CHAIRMAN_MODEL, AVAILABLE_MODELS
+from . import audit_log
 
 app = FastAPI(title="LLM Council Plus API")
+
+# Install audit log handler on startup
+audit_log.setup_logging()
 
 # Enable CORS for local development and network access
 # Allow requests from any hostname on ports 5173 and 3000 (frontend)
@@ -38,6 +43,8 @@ class SendMessageRequest(BaseModel):
     content: str
     web_search: bool = False
     execution_mode: str = "full"  # 'chat_only', 'chat_ranking', 'full'
+    attached_content: Optional[str] = None  # Pre-extracted file text
+    attached_files: Optional[List[str]] = None  # File names for display
 
 
 class ConversationMetadata(BaseModel):
@@ -92,6 +99,38 @@ async def delete_conversation(conversation_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return {"status": "deleted"}
+
+
+@app.post("/api/upload-files")
+async def upload_files(files: List[UploadFile] = File(...)):
+    """
+    Upload files and extract their text content.
+    Returns extracted text for each file.
+    Max 5 files, 10MB each.
+    """
+    if len(files) > 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 files allowed")
+
+    results = []
+    for file in files:
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024:  # 10MB
+            results.append({
+                "name": file.filename,
+                "content": None,
+                "error": "File too large (max 10MB)",
+                "size": len(content),
+            })
+            continue
+
+        text = extract_text(file.filename or "unknown.txt", content)
+        results.append({
+            "name": file.filename,
+            "content": text,
+            "size": len(content),
+        })
+
+    return {"files": results}
 
 
 @app.post("/api/conversations/{conversation_id}/message/stream")
@@ -180,8 +219,42 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
                 yield f"data: {json.dumps({'type': 'search_complete', 'data': {'search_query': search_query, 'extracted_query': extracted_query, 'search_context': search_context, 'provider': provider.value, 'intent': search_intent}})}\n\n"
                 await asyncio.sleep(0.05)
 
+            # Auto-detect and fetch URLs from the user's message
+            url_context = ""
+            try:
+                from .search import extract_urls_from_text
+                detected_urls = extract_urls_from_text(body.content)
+                if detected_urls:
+                    yield f"data: {json.dumps({'type': 'url_fetch_start', 'data': {'urls': detected_urls}})}\n\n"
+                    fetched_urls, url_context = await fetch_urls_from_message(body.content)
+                    if fetched_urls:
+                        print(f"🔗 Fetched content from {len(fetched_urls)} URLs")
+                    yield f"data: {json.dumps({'type': 'url_fetch_complete', 'data': {'urls': fetched_urls, 'count': len(fetched_urls)}})}\n\n"
+                    await asyncio.sleep(0.05)
+            except Exception as e:
+                print(f"URL fetch error: {e}")
+
+            # Merge all context sources: web search + URL content + file attachments
+            combined_context = search_context
+            if url_context:
+                combined_context = (combined_context + "\n\n" + url_context) if combined_context else url_context
+            if body.attached_content:
+                file_header = "The user has attached the following files:\n\n" + body.attached_content
+                combined_context = (combined_context + "\n\n" + file_header) if combined_context else file_header
+
+            # Use combined_context for all stages
+            search_context = combined_context
+
+            # Detect query type and assign roles for Stage 1
+            from .council import detect_query_type, assign_roles
+            from .config import get_council_models
+            query_type = detect_query_type(body.content)
+            models = get_council_models()
+            role_assignments = assign_roles(models)
+            role_map = {m: {"name": r["name"], "id": r["id"]} for m, r in role_assignments.items()}
+
             # Stage 1: Collect responses
-            yield f"data: {json.dumps({'type': 'stage1_start'})}\n\n"
+            yield f"data: {json.dumps({'type': 'stage1_start', 'data': {'query_type': query_type, 'roles': role_map}})}\n\n"
             await asyncio.sleep(0.05)
             
             total_models = 0
@@ -334,6 +407,11 @@ class UpdateSettingsRequest(BaseModel):
     deepseek_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
 
+    # AWS Bedrock
+    bedrock_api_key: Optional[str] = None
+    bedrock_region: Optional[str] = None
+    bedrock_model_ids: Optional[List[str]] = None
+
     # Enabled Providers
     enabled_providers: Optional[Dict[str, bool]] = None
     direct_provider_toggles: Optional[Dict[str, bool]] = None
@@ -395,6 +473,11 @@ async def get_app_settings():
         "groq_api_key_set": bool(settings.groq_api_key),
         "custom_endpoint_api_key_set": bool(settings.custom_endpoint_api_key),
 
+        # AWS Bedrock
+        "bedrock_api_key_set": bool(settings.bedrock_api_key),
+        "bedrock_region": settings.bedrock_region,
+        "bedrock_model_ids": settings.bedrock_model_ids,
+
         # Enabled Providers
         "enabled_providers": settings.enabled_providers,
         "direct_provider_toggles": settings.direct_provider_toggles,
@@ -402,7 +485,7 @@ async def get_app_settings():
         # Council Configuration (unified)
         "council_models": settings.council_models,
         "chairman_model": settings.chairman_model,
-        
+
         # Remote/Local filters
         "council_member_filters": settings.council_member_filters,
         "chairman_filter": settings.chairman_filter,
@@ -528,6 +611,14 @@ async def update_app_settings(request: UpdateSettingsRequest):
     if request.groq_api_key is not None:
         updates["groq_api_key"] = request.groq_api_key
 
+    # AWS Bedrock
+    if request.bedrock_api_key is not None:
+        updates["bedrock_api_key"] = request.bedrock_api_key
+    if request.bedrock_region is not None:
+        updates["bedrock_region"] = request.bedrock_region
+    if request.bedrock_model_ids is not None:
+        updates["bedrock_model_ids"] = request.bedrock_model_ids
+
     # Enabled Providers
     if request.enabled_providers is not None:
         updates["enabled_providers"] = request.enabled_providers
@@ -606,6 +697,11 @@ async def update_app_settings(request: UpdateSettingsRequest):
         "deepseek_api_key_set": bool(settings.deepseek_api_key),
         "groq_api_key_set": bool(settings.groq_api_key),
         "custom_endpoint_api_key_set": bool(settings.custom_endpoint_api_key),
+
+        # AWS Bedrock
+        "bedrock_api_key_set": bool(settings.bedrock_api_key),
+        "bedrock_region": settings.bedrock_region,
+        "bedrock_model_ids": settings.bedrock_model_ids,
 
         # Enabled Providers
         "enabled_providers": settings.enabled_providers,
@@ -978,6 +1074,85 @@ async def test_openrouter_api(request: TestOpenRouterRequest):
         return {"success": False, "message": "Request timed out"}
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+
+class TestBedrockRequest(BaseModel):
+    """Request to test AWS Bedrock API key."""
+    api_key: str = ""
+    region: str = "us-east-1"
+    model_ids: Optional[List[str]] = None
+
+
+@app.post("/api/settings/test-bedrock")
+async def test_bedrock_connection(request: TestBedrockRequest):
+    """Test AWS Bedrock API key and region."""
+    import logging
+    logger = logging.getLogger("backend.main")
+    from .providers.bedrock import BedrockProvider
+    from .settings import update_settings, get_settings
+
+    # Save region and model_ids first so validate_key picks them up
+    updates = {}
+    if request.region:
+        updates["bedrock_region"] = request.region
+    if request.model_ids is not None:
+        filtered = [m.strip() for m in request.model_ids if m.strip()]
+        if filtered:
+            updates["bedrock_model_ids"] = filtered
+    if updates:
+        update_settings(**updates)
+
+    # Use stored key if none provided
+    api_key = request.api_key
+    if not api_key:
+        settings = get_settings()
+        api_key = settings.bedrock_api_key or ""
+
+    if not api_key:
+        return {"success": False, "message": "No API key provided or configured"}
+
+    logger.info(f"test-bedrock: region={request.region}, api_key_len={len(api_key)}, model_ids={request.model_ids}")
+
+    provider = BedrockProvider()
+    return await provider.validate_key(api_key)
+
+
+@app.get("/api/bedrock/models")
+async def get_bedrock_models():
+    """Get user-configured Bedrock models."""
+    from .providers.bedrock import BedrockProvider
+
+    provider = BedrockProvider()
+    models = await provider.get_models()
+    return {"models": models}
+
+
+class UpdateBedrockModelsRequest(BaseModel):
+    """Request to update Bedrock model IDs."""
+    model_ids: List[str]
+
+
+@app.put("/api/bedrock/models")
+async def update_bedrock_models(request: UpdateBedrockModelsRequest):
+    """Update user-configured Bedrock model IDs."""
+    # Filter out empty strings
+    model_ids = [mid.strip() for mid in request.model_ids if mid.strip()]
+    settings = update_settings(bedrock_model_ids=model_ids)
+    return {"models": model_ids, "count": len(model_ids)}
+
+
+@app.get("/api/audit/logs")
+async def get_audit_logs(since_id: int = 0):
+    """Get audit log entries since a given ID (for polling)."""
+    entries = audit_log.get_entries(since_id)
+    return {"entries": entries}
+
+
+@app.delete("/api/audit/logs")
+async def clear_audit_logs():
+    """Clear all audit log entries."""
+    audit_log.clear()
+    return {"status": "cleared"}
 
 
 if __name__ == "__main__":

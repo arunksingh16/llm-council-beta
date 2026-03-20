@@ -61,6 +61,7 @@ export default function CouncilConfig({
             case 'google': return !!settings?.google_api_key_set;
             case 'mistral': return !!settings?.mistral_api_key_set;
             case 'deepseek': return !!settings?.deepseek_api_key_set;
+            case 'bedrock': return !!settings?.bedrock_api_key_set;
             default: return false;
         }
     };
@@ -152,6 +153,21 @@ export default function CouncilConfig({
                                     <span className="slider"></span>
                                 </div>
                                 <span className="toggle-text">{settings?.custom_endpoint_name || customEndpointName || 'Custom Endpoint'}</span>
+                            </label>
+                        )}
+
+                        {/* AWS Bedrock Toggle - only show if configured */}
+                        {settings?.bedrock_api_key_set && (
+                            <label className="toggle-wrapper">
+                                <div className="toggle-switch">
+                                    <input
+                                        type="checkbox"
+                                        checked={enabledProviders.bedrock}
+                                        onChange={(e) => setEnabledProviders(prev => ({ ...prev, bedrock: e.target.checked }))}
+                                    />
+                                    <span className="slider"></span>
+                                </div>
+                                <span className="toggle-text">AWS Bedrock</span>
                             </label>
                         )}
                     </div>
