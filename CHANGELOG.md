@@ -5,6 +5,28 @@ All notable changes to LLM Council Plus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-20
+
+### Added
+- **AWS Bedrock Provider**: Full integration with AWS Bedrock via the Converse API (boto3 + bearer token flow), including model listing and key validation
+- **File Upload Support**: Attach text files and PDFs to your council queries — backend extracts content via pypdf with size/truncation safeguards (`/api/upload-files` endpoint)
+- **URL Context Fetching**: URLs referenced in messages are automatically fetched via Jina Reader and included as context for all stages
+- **Audit Log**: In-memory audit logging with a live viewer panel for debugging and observability (endpoints to fetch/clear logs)
+- **Role-Aware Prompting**: Query type detection (factual, analytical, creative, etc.) with analyst role assignments for richer Stage 1 responses
+- **Enhanced Stage 2/3 Prompts**: Richer peer review and synthesis instructions with role metadata included in chairman synthesis
+- **Bedrock Icon & UI**: Bedrock provider icon and configuration UI in Settings (API key, region, model IDs)
+- **Stage 1 Persistence**: Stage 1 results now remain visible after Stage 2 and Stage 3 complete (previously hidden)
+
+### Changed
+- **Improved Council Orchestration**: Query-aware and role-specialized prompts across all stages
+- **Search Module**: Added URL extraction utilities and async fetching to build richer contextual inputs
+- **Streaming Flow**: Messages now merge web search, URL-fetched, and file-attached contexts before council deliberation
+- **Frontend Dependencies**: Updated packages for new features
+
+### Fixed
+- **Stage 1 Visibility**: Stage 1 output no longer disappears when Stage 2 arrives
+- **Ollama Configuration**: Fixed toggle disabled when Ollama was connected (PR #4). Thanks @patrickgamer!
+
 ## [0.2.2] - 2026-02-18
 
 ### Fixed

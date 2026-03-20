@@ -112,6 +112,7 @@ Mix and match models from different sources in your council:
 | **Google Direct** | Cloud | Direct connection to Google AI API |
 | **Mistral Direct** | Cloud | Direct connection to Mistral API |
 | **DeepSeek Direct** | Cloud | Direct connection to DeepSeek API |
+| **AWS Bedrock** | Cloud | AWS Bedrock via Converse API (Claude, Llama, Mistral, etc.) |
 | **Custom Endpoint** | Any | Connect to any OpenAI-compatible API (Together AI, Fireworks, vLLM, LM Studio, GitHub Models, etc.) |
 
 <p align="center">
@@ -164,6 +165,22 @@ Fine-tune creativity vs consistency:
 <p align="center">
   <img width="849" alt="Council Configuration" src="https://github.com/user-attachments/assets/45880bee-1fec-4efc-b1cb-eceaabe071ff" />
 </p>
+
+### File Upload & URL Context
+
+Attach files or reference URLs to give the council richer context:
+
+- **File Uploads**: Attach text files (.txt, .md, .py, .js, .json, .csv, etc.) and PDFs — content is extracted server-side and included as context for all stages
+- **Automatic URL Fetching**: URLs in your message are automatically detected and fetched via Jina Reader, so models can read referenced articles/docs
+- Up to 5 files per message, with size and truncation safeguards
+
+### Role-Aware Prompting
+
+The council automatically detects your query type (factual, analytical, creative, etc.) and assigns specialist roles to each council member for more diverse, targeted responses.
+
+### Audit Log
+
+A live audit log viewer for debugging and observability — track API calls, model responses, and errors in real-time from the UI.
 
 ### Additional Features
 
@@ -267,6 +284,7 @@ On first launch, the Settings panel will open automatically. Configure at least 
 | Google AI | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 | Mistral | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys/) |
 | DeepSeek | [platform.deepseek.com](https://platform.deepseek.com/) |
+| AWS Bedrock | [AWS Console](https://console.aws.amazon.com/bedrock/) (requires IAM credentials or bearer token) |
 
 **API keys are auto-saved** when you click "Test" and the connection succeeds.
 
@@ -434,7 +452,7 @@ data/
 This project is a fork and enhancement of the original **[llm-council](https://github.com/karpathy/llm-council)** by **[Andrej Karpathy](https://github.com/karpathy)**.
 
 **LLM Council Plus** builds upon the original "vibe coded" foundation with:
-- Multi-provider support (OpenRouter, Ollama, Groq, Direct APIs, Custom endpoints)
+- Multi-provider support (OpenRouter, Ollama, Groq, AWS Bedrock, Direct APIs, Custom endpoints)
 - Web search integration (DuckDuckGo, Tavily, Brave + Jina Reader)
 - Execution modes (Chat Only, Chat + Ranking, Full Deliberation)
 - Temperature controls for all stages
