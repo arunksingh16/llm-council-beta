@@ -1,6 +1,4 @@
-# LLM Council Plus
-
-![LLM Council Plus](header.png)
+# LLM Council Beta
 
 > **Collective AI Intelligence** — Instead of asking one LLM, convene a council of AI models that deliberate, peer-review, and synthesize the best answer.
 
@@ -11,9 +9,15 @@
 
 ---
 
-## What is LLM Council Plus?
+## Lineage
 
-Instead of asking a single LLM (like ChatGPT or Claude) for an answer, **LLM Council Plus** assembles a council of multiple AI models that:
+This project is **LLM Council Beta**, forked from **[llm-council-plus](https://github.com/jacob-bd/llm-council-plus)** by [jacob-bd](https://github.com/jacob-bd), which itself is a fork of the original **[llm-council](https://github.com/karpathy/llm-council)** by [Andrej Karpathy](https://github.com/karpathy).
+
+---
+
+## What is LLM Council Beta?
+
+Instead of asking a single LLM (like ChatGPT or Claude) for an answer, **LLM Council Beta** assembles a council of multiple AI models that:
 
 1. **Independently answer** your question (Stage 1)
 2. **Anonymously peer-review** each other's responses (Stage 2)
@@ -21,25 +25,14 @@ Instead of asking a single LLM (like ChatGPT or Claude) for an answer, **LLM Cou
 
 The result? More balanced, accurate, and thoroughly vetted responses that leverage the collective intelligence of multiple AI models.
 
-<p align="center">
-  <div align="center">
-    <a href="https://www.youtube.com/watch?v=HOdyIyccOCE" target="_blank">
-      <img src="https://img.youtube.com/vi/HOdyIyccOCE/hqdefault.jpg" alt="LLM Council Plus Long Demo" width="48%">
-    </a>
-    <a href="https://www.youtube.com/watch?v=NUmQFGAwD3g" target="_blank">
-      <img src="https://img.youtube.com/vi/NUmQFGAwD3g/hqdefault.jpg" alt="LLM Council Plus Short Demo" width="48%">
-    </a>
-  </div>
-</p>
-
 ---
 
 ## Installation
 
 ```bash
 # Clone and install
-git clone https://github.com/jacob-bd/llm-council-plus.git
-cd llm-council-plus
+git clone <your-repo-url>
+cd llm-council-beta
 uv sync                    # Backend dependencies
 cd frontend && npm install # Frontend dependencies
 
@@ -113,17 +106,10 @@ Mix and match models from different sources in your council:
 | **Mistral Direct** | Cloud | Direct connection to Mistral API |
 | **DeepSeek Direct** | Cloud | Direct connection to DeepSeek API |
 | **AWS Bedrock** | Cloud | AWS Bedrock via Converse API (Claude, Llama, Mistral, etc.) |
+| **Azure OpenAI** | Cloud | Azure OpenAI / AI Foundry endpoints |
 | **Custom Endpoint** | Any | Connect to any OpenAI-compatible API (Together AI, Fireworks, vLLM, LM Studio, GitHub Models, etc.) |
 
-<p align="center">
-  <img width="600" alt="LLM API Keys Settings" src="https://github.com/user-attachments/assets/f9a5ec9d-17e8-4e78-ad40-0c21850f2823" />
-</p>
-
 ### Execution Modes
-
-<p align="center">
-  <img width="818" alt="Execution Modes Toggle" src="https://github.com/user-attachments/assets/6f8dcc5b-6dbb-423a-8376-9f6b0ebb58ba" />
-</p>
 
 Choose how deeply the council deliberates:
 
@@ -135,26 +121,19 @@ Choose how deeply the council deliberates:
 
 ### Web Search Integration
 
-<p align="center">
-  <img width="841" alt="Web Search Settings" src="https://github.com/user-attachments/assets/ae0d8f30-8a0d-4ae2-924b-3de75e9102e1" />
-</p>
-
 Ground your council's responses in real-time information:
 
 | Provider | Type | Notes |
 |----------|------|-------|
 | **DuckDuckGo** | Free | Hybrid web+news search, no API key needed |
-| **Serper** | API Key | Real Google results, 2,500 free queries |
 | **Tavily** | API Key | Purpose-built for LLMs, rich content |
 | **Brave Search** | API Key | Privacy-focused, 2,000 free queries/month |
 
 **Full Article Fetching**: Uses [Jina Reader](https://jina.ai/reader) to extract full article content from top search results (configurable 0-10 results).
 
-### Temperature Controls
+---
 
-<p align="center">
-  <img width="586" alt="Temperature Controls" src="https://github.com/user-attachments/assets/3922edf6-99f5-4020-b80f-ba3c43a2ce9a" />
-</p>
+### Temperature Controls
 
 Fine-tune creativity vs consistency:
 
@@ -162,9 +141,18 @@ Fine-tune creativity vs consistency:
 - **Chairman Heat**: Controls final synthesis creativity (default: 0.4)
 - **Stage 2 Heat**: Controls peer ranking consistency (default: 0.3)
 
-<p align="center">
-  <img width="849" alt="Council Configuration" src="https://github.com/user-attachments/assets/45880bee-1fec-4efc-b1cb-eceaabe071ff" />
-</p>
+### Direct Chat
+
+One-on-one model conversations with full features:
+
+- Conversation persistence (separate from council history)
+- File attachments (text, PDF)
+- Web search toggle per message
+- URL auto-fetch for referenced articles/docs
+
+### MCP Integration
+
+Connect to external MCP (Model Context Protocol) servers from the MCP dashboard to extend capabilities.
 
 ### File Upload & URL Context
 
@@ -185,18 +173,13 @@ A live audit log viewer for debugging and observability — track API calls, mod
 ### Additional Features
 
 - **Live Progress Tracking**: See each model respond in real-time
-- **Council Sizing**: adjust council size from 2 to 8
+- **Council Sizing**: Adjust council size from 2 to 8
 - **Abort Anytime**: Cancel in-progress requests
 - **Conversation History**: All conversations saved locally
 - **Customizable Prompts**: Edit Stage 1, 2, and 3 system prompts
 - **Rate Limit Warnings**: Alerts when your config may hit API limits (when >5 council members)
 - **"I'm Feeling Lucky"**: Randomize your council composition
-- **Import & Export**:  backup and share your favorite council configurations, system prompts, and settings
-
-<p align="center">
-  <img width="854" alt="Backup and Reset" src="https://github.com/user-attachments/assets/0e618bd4-02c2-47b2-b82b-c4900b7a4fdd" />
-</p>
-
+- **Import & Export**: Backup and share your favorite council configurations, system prompts, and settings
 
 ---
 
@@ -235,7 +218,7 @@ Then open **http://localhost:5173** in your browser.
 The application is configured to be accessible from other devices on your local network.
 
 **Using start.sh (automatic):**
-The start script now exposes both frontend and backend on the network automatically. Just run `./start.sh` and access from any device.
+The start script exposes both frontend and backend on the network automatically. Just run `./start.sh` and access from any device.
 
 **Access URLs:**
 - **Local:** `http://localhost:5173`
@@ -245,9 +228,6 @@ The start script now exposes both frontend and backend on the network automatica
 ```bash
 # macOS/Linux
 ifconfig | grep "inet " | grep -v 127.0.0.1
-
-# Or use hostname
-hostname -I
 ```
 
 **Manual setup (if not using start.sh):**
@@ -258,8 +238,6 @@ hostname -I
 cd frontend
 npm run dev -- --host
 ```
-
-The frontend automatically detects the hostname and connects to the backend on the same IP. CORS is configured to allow requests from any hostname on ports 5173 and 3000.
 
 ---
 
@@ -326,7 +304,6 @@ Connect to any OpenAI-compatible API:
 | Provider | Setup |
 |----------|-------|
 | DuckDuckGo | Works out of the box, no setup needed |
-| Serper | Get key at [serper.dev](https://serper.dev), enter in Search Providers tab |
 | Tavily | Get key at [tavily.com](https://tavily.com), enter in Search Providers tab |
 | Brave | Get key at [brave.com/search/api](https://brave.com/search/api/), enter in Search Providers tab |
 
@@ -380,7 +357,7 @@ Connect to any OpenAI-compatible API:
 |-----------|------------|
 | **Backend** | FastAPI, Python 3.10+, httpx (async HTTP) |
 | **Frontend** | React 19, Vite, react-markdown |
-| **Styling** | CSS with "Midnight Glass" dark theme |
+| **Styling** | CSS with light/dark theme support |
 | **Storage** | JSON files in `data/` directory |
 | **Package Management** | uv (Python), npm (JavaScript) |
 
@@ -406,7 +383,6 @@ data/
 >
 > **Important:**
 > - **Do NOT remove `data/` from `.gitignore`** — this protects your API keys from being pushed to GitHub
-> - If you fork this repo or modify `.gitignore`, ensure `data/` remains ignored
 > - Never commit `data/settings.json` to version control
 > - If you accidentally expose your keys, rotate them immediately at each provider's dashboard
 
@@ -449,18 +425,12 @@ data/
 
 ## Credits & Acknowledgements
 
-This project is a fork and enhancement of the original **[llm-council](https://github.com/karpathy/llm-council)** by **[Andrej Karpathy](https://github.com/karpathy)**.
+This project stands on the shoulders of:
 
-**LLM Council Plus** builds upon the original "vibe coded" foundation with:
-- Multi-provider support (OpenRouter, Ollama, Groq, AWS Bedrock, Direct APIs, Custom endpoints)
-- Web search integration (DuckDuckGo, Tavily, Brave + Jina Reader)
-- Execution modes (Chat Only, Chat + Ranking, Full Deliberation)
-- Temperature controls for all stages
-- Enhanced Settings UI with import/export
-- Real-time streaming with progress tracking
-- And much more...
+- **[Andrej Karpathy](https://github.com/karpathy)** — original [llm-council](https://github.com/karpathy/llm-council) concept and codebase
+- **[jacob-bd](https://github.com/jacob-bd)** — [llm-council-plus](https://github.com/jacob-bd/llm-council-plus) fork with multi-provider support, web search, streaming, and significant feature additions
 
-We gratefully acknowledge Andrej Karpathy for the original inspiration and codebase.
+**LLM Council Beta** builds further with additional providers (Azure OpenAI, AWS Bedrock), Direct Chat, MCP integration, conversation history, and more.
 
 ---
 
