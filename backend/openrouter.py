@@ -21,7 +21,8 @@ async def query_model(
     model: str,
     messages: List[Dict[str, str]],
     timeout: float = 120.0,
-    temperature: float = 0.7
+    temperature: float = 0.7,
+    tools: list = None
 ) -> Optional[Dict[str, Any]]:
     """
     Query a single model via OpenRouter API with retry logic for rate limits.
@@ -31,6 +32,7 @@ async def query_model(
         messages: List of message dicts with 'role' and 'content'
         timeout: Request timeout in seconds
         temperature: Model temperature
+        tools: Optional list of tool definitions (OpenAI format)
 
     Returns:
         Response dict with 'content', optional 'reasoning_details', and 'error' if failed
@@ -46,6 +48,8 @@ async def query_model(
         "messages": messages,
         "temperature": temperature
     }
+    if tools:
+        payload["tools"] = tools
 
     last_error = None
 
@@ -84,6 +88,19 @@ async def query_model(
                 response.raise_for_status()
 
                 data = response.json()
+
+                # Check for tool calls
+                from .tool_use import extract_tool_calls_openai
+                content, tool_calls, raw_message = extract_tool_calls_openai(data)
+
+                if tool_calls:
+                    return {
+                        'content': content,
+                        'tool_calls': tool_calls,
+                        'raw_message': raw_message,
+                        'error': None,
+                    }
+
                 message = data['choices'][0]['message']
 
                 return {

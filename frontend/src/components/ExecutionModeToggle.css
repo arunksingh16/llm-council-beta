@@ -2,10 +2,14 @@
     display: flex;
     gap: 4px;
     padding: 4px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-hover);
     backdrop-filter: blur(10px);
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .execution-mode-toggle {
+    backdrop-filter: none;
 }
 
 .mode-option {
@@ -18,7 +22,7 @@
     background: transparent;
     border: none;
     border-radius: 6px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--mode-btn-color);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -27,8 +31,8 @@
 }
 
 .mode-option:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.8);
+    background: var(--mode-btn-hover-bg);
+    color: var(--mode-btn-hover-color);
     filter: brightness(1.1);
 }
 

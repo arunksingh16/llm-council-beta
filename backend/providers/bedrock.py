@@ -92,7 +92,7 @@ class BedrockProvider(LLMProvider):
 
         return system_prompts, converse_messages
 
-    async def query(self, model_id: str, messages: List[Dict[str, str]], timeout: float = 120.0, temperature: float = 0.7) -> Dict[str, Any]:
+    async def query(self, model_id: str, messages: List[Dict[str, str]], timeout: float = 120.0, temperature: float = 0.7, tools: list = None) -> Dict[str, Any]:
         api_key, region = self._get_config()
         if not api_key:
             return {"error": True, "error_message": "AWS Bedrock API key not configured"}

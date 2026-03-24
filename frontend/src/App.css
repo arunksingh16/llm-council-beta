@@ -9,6 +9,61 @@
   z-index: 1;
 }
 
+/* App Mode Toggle (Council / Direct Chat) */
+.app-mode-toggle {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  gap: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 3px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-soft);
+}
+
+[data-theme="light"] .app-mode-toggle {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.app-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.app-mode-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.app-mode-btn.active {
+  background: var(--accent-primary);
+  color: white;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+}
+
+.app-mode-btn.active svg {
+  stroke: white;
+}
+
 /* Mobile hamburger menu button */
 .mobile-menu-btn {
   display: none;
@@ -18,7 +73,7 @@
   z-index: 100;
   width: 44px;
   height: 44px;
-  background: rgba(30, 41, 59, 0.9);
+  background: var(--bg-card);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-glass);
   border-radius: 10px;
@@ -65,16 +120,30 @@
   .mobile-menu-btn {
     display: flex;
   }
+
+  .app-mode-toggle {
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .app-mode-btn span {
+    display: none;
+  }
+
+  .app-mode-btn {
+    padding: 6px 10px;
+  }
 }
 
 /* Ensure modals sit on top of the glass UI */
 .settings-overlay {
-  background: rgba(0, 0, 0, 0.7); /* Darker overlay for contrast */
+  background: var(--bg-overlay);
   backdrop-filter: blur(4px);
 }
 
 .settings-modal {
-  background: #0f172a; /* Dark solid background for settings to avoid visual chaos */
+  background: var(--bg-modal);
   border: 1px solid var(--border-glass);
   color: var(--text-primary);
   box-shadow: 0 20px 50px rgba(0,0,0,0.5);
@@ -82,7 +151,7 @@
 
 /* Adjust Settings Styles for Dark Mode Compatibility */
 .settings-header {
-  background: #0f172a;
+  background: var(--bg-modal-header);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -98,11 +167,11 @@
 }
 
 .settings-body {
-  background: #0f172a;
+  background: var(--bg-modal);
 }
 
 .settings-sidebar {
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--bg-modal-sidebar);
   border-right: 1px solid var(--border-color);
 }
 
@@ -110,16 +179,16 @@
   color: var(--text-secondary);
 }
 .sidebar-nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 .sidebar-nav-item.active {
-  background: rgba(59, 130, 246, 0.15);
+  background: var(--bg-active);
   color: var(--accent-primary);
 }
 
 .settings-main-panel {
-  background: #0f172a;
+  background: var(--bg-modal);
 }
 
 .settings-section h3 {
@@ -136,7 +205,7 @@
 .settings-modal input[type="password"],
 .settings-modal textarea,
 .settings-modal select {
-  background: #1e293b;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
 }
@@ -145,7 +214,7 @@
 .settings-modal textarea:focus,
 .settings-modal select:focus {
   border-color: var(--accent-primary);
-  background: #1e293b;
+  background: var(--bg-input);
 }
 
 /* Cards in Settings */
@@ -154,7 +223,7 @@
   background: transparent;
 }
 .provider-option-container:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-hover);
 }
 .provider-option-container.selected {
   background: rgba(59, 130, 246, 0.1);
@@ -169,7 +238,7 @@
 }
 
 .council-member-row {
-  background: #1e293b;
+  background: var(--bg-surface);
   border-color: var(--border-color);
 }
 .member-label {
@@ -177,7 +246,7 @@
 }
 
 .api-key-section, .hybrid-settings-card, .full-content-section {
-  background: #1e293b; /* Card bg in settings */
+  background: var(--bg-surface);
   border-color: var(--border-color);
 }
 
@@ -186,7 +255,7 @@
 }
 
 .settings-footer {
-  background: #0f172a;
+  background: var(--bg-modal-header);
   border-top-color: var(--border-color);
 }
 
@@ -217,7 +286,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  background: #1e293b;
+  background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-bottom: none;
   border-radius: 8px 8px 0 0;
@@ -230,7 +299,7 @@
 
 .audit-log-toggle:hover {
   color: var(--text-primary);
-  background: #263248;
+  background: var(--bg-surface-hover);
 }
 
 .audit-log-toggle-icon {
@@ -254,7 +323,7 @@
   left: 0;
   right: 0;
   height: 280px;
-  background: #0d1117;
+  background: var(--bg-dark);
   border-top: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
@@ -266,14 +335,14 @@
   gap: 10px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--border-color);
-  background: #161b22;
+  background: var(--bg-surface);
   flex-shrink: 0;
 }
 
 .audit-log-filter {
   flex: 1;
   padding: 4px 8px;
-  background: #1e293b;
+  background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-primary);
@@ -358,11 +427,11 @@
 }
 
 .audit-log-entry:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-hover);
 }
 
 .audit-log-time {
-  color: #555;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -373,7 +442,7 @@
 }
 
 .audit-log-source {
-  color: #6b7280;
+  color: var(--text-muted);
   flex-shrink: 0;
   max-width: 200px;
   overflow: hidden;

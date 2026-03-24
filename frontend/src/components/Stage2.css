@@ -33,6 +33,12 @@
   backdrop-filter: blur(8px);
 }
 
+[data-theme="light"] .aggregate-rankings {
+  background: #fffbeb;
+  border-color: rgba(251, 146, 60, 0.25);
+  backdrop-filter: none;
+}
+
 .aggregate-rankings h4 {
   margin: 0 0 12px 0;
   color: var(--accent-stage2);
@@ -51,14 +57,19 @@
   align-items: center;
   gap: 12px;
   padding: 10px;
-  background: rgba(30, 41, 59, 0.4);
+  background: var(--bg-hover);
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-subtle);
   transition: all 0.2s;
 }
 
+[data-theme="light"] .aggregate-item {
+  background: #ffffff;
+  border-color: var(--border-color);
+}
+
 .aggregate-item:hover {
-  background: rgba(30, 41, 59, 0.6);
+  background: var(--bg-hover-strong);
   border-color: var(--accent-stage2);
 }
 
@@ -95,7 +106,7 @@
 }
 
 .rank-score {
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 13px;
   font-family: var(--font-code);
   font-weight: 600;
@@ -115,7 +126,7 @@
 }
 
 .tab {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-hover);
   border: 1px solid var(--border-glass);
   color: var(--text-secondary);
   padding: 10px 16px;
@@ -131,15 +142,15 @@
 }
 
 .tab:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-hover-strong);
   transform: translateY(-2px);
 }
 
 .tab.active {
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-active);
   border-color: currentColor; /* Use inline color */
   color: var(--text-primary);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-shadow: var(--shadow-soft);
 }
 
 .tab-icon {
@@ -244,7 +255,7 @@
 .parsed-ranking {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  border-top: 2px solid var(--border-subtle);
 }
 
 .parsed-ranking strong {
@@ -347,8 +358,8 @@
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(30, 41, 59, 0.95);
-  color: var(--text-primary);
+  background-color: var(--tooltip-bg);
+  color: var(--tooltip-text);
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 12px;
@@ -363,7 +374,7 @@
   font-weight: normal;
   font-style: normal;
   line-height: 1.5;
-  border: 1px solid var(--border-glass);
+  border: 1px solid var(--tooltip-border);
 }
 
 .info-tooltip::after {
@@ -374,7 +385,7 @@
   margin-left: -6px;
   border-width: 6px;
   border-style: solid;
-  border-color: rgba(30, 41, 59, 0.95) transparent transparent transparent;
+  border-color: var(--tooltip-bg) transparent transparent transparent;
 }
 
 .info-tooltip-container:hover .info-tooltip {
@@ -386,18 +397,18 @@
 .rank-bar-container {
   flex: 1;
   height: 44px;
-  background: rgba(30, 41, 59, 0.4);
+  background: var(--bg-hover);
   border-radius: 8px;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-glass);
 }
 
 .rank-bar-fill {
   height: 100%;
   border-radius: 8px;
-  background: linear-gradient(90deg, 
-    rgba(var(--bar-color-rgb), 0.4) 0%, 
+  background: linear-gradient(90deg,
+    rgba(var(--bar-color-rgb), 0.4) 0%,
     rgba(var(--bar-color-rgb), 0.8) 100%
   );
   width: 0%;
@@ -414,6 +425,11 @@
   width: 2px;
   background: rgba(255, 255, 255, 0.5);
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .rank-bar-fill::after {
+  background: rgba(0, 0, 0, 0.2);
+  box-shadow: none;
 }
 
 .rank-content {

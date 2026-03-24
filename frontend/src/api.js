@@ -18,8 +18,11 @@ export const api = {
   /**
    * List all conversations.
    */
-  async listConversations() {
-    const response = await fetch(`${API_BASE}/api/conversations`);
+  async listConversations(type = null) {
+    const url = type
+      ? `${API_BASE}/api/conversations?type=${encodeURIComponent(type)}`
+      : `${API_BASE}/api/conversations`;
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error('Failed to list conversations');
     }
@@ -29,13 +32,13 @@ export const api = {
   /**
    * Create a new conversation.
    */
-  async createConversation() {
+  async createConversation(type = 'council') {
     const response = await fetch(`${API_BASE}/api/conversations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ type }),
     });
     if (!response.ok) {
       throw new Error('Failed to create conversation');
@@ -443,6 +446,62 @@ export const api = {
    * @param {AbortSignal} signal - Optional AbortSignal to cancel the request
    * @returns {Promise<void>}
    */
+  /**
+   * Send a direct chat message to a single model with streaming.
+   * @param {Object} options - { conversationId, model, content, temperature, webSearch, attachedContent, attachedFiles }
+   * @param {function} onEvent - Callback: (eventType, data) => void
+   * @param {AbortSignal} signal - Optional abort signal
+   */
+  async sendDirectChatStream(options, onEvent, signal) {
+    const { conversationId, model, content, temperature = 0.7, webSearch = false, attachedContent = null, attachedFiles = null } = options;
+    const payload = { conversation_id: conversationId, model, content, temperature, web_search: webSearch };
+    if (attachedContent) payload.attached_content = attachedContent;
+    if (attachedFiles) payload.attached_files = attachedFiles;
+    const response = await fetch(
+      `${API_BASE}/api/direct-chat/stream?_t=${Date.now()}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        body: JSON.stringify(payload),
+        signal,
+        cache: 'no-store',
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to send direct chat message');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              onEvent(event.type, event);
+            } catch (e) {
+              console.error('Failed to parse SSE event:', e);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
   async sendMessageStream(conversationId, options, onEvent, signal) {
     const { content, webSearch = false, executionMode = 'full', attachedContent = null, attachedFiles = null } = options;
     const body = { content, web_search: webSearch, execution_mode: executionMode };
@@ -492,5 +551,67 @@ export const api = {
     } finally {
       reader.releaseLock();
     }
+  },
+
+  // ---- MCP Server Management ----
+
+  async mcpHealth() {
+    const response = await fetch(`${API_BASE}/api/mcp/health`);
+    if (!response.ok) throw new Error('Failed to get MCP health');
+    return response.json();
+  },
+
+  async mcpListServers() {
+    const response = await fetch(`${API_BASE}/api/mcp/servers`);
+    if (!response.ok) throw new Error('Failed to list MCP servers');
+    return response.json();
+  },
+
+  async mcpAddServer(config) {
+    const response = await fetch(`${API_BASE}/api/mcp/servers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!response.ok) throw new Error('Failed to add MCP server');
+    return response.json();
+  },
+
+  async mcpRemoveServer(serverId) {
+    const response = await fetch(`${API_BASE}/api/mcp/servers/${serverId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to remove MCP server');
+    return response.json();
+  },
+
+  async mcpConnectServer(serverId) {
+    const response = await fetch(`${API_BASE}/api/mcp/servers/${serverId}/connect`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to connect MCP server');
+    return response.json();
+  },
+
+  async mcpDisconnectServer(serverId) {
+    const response = await fetch(`${API_BASE}/api/mcp/servers/${serverId}/disconnect`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to disconnect MCP server');
+    return response.json();
+  },
+
+  async mcpRefreshAll() {
+    const response = await fetch(`${API_BASE}/api/mcp/refresh`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to refresh MCP servers');
+    return response.json();
+  },
+
+  async mcpAllTools() {
+    const response = await fetch(`${API_BASE}/api/mcp/tools`);
+    if (!response.ok) throw new Error('Failed to get MCP tools');
+    return response.json();
   },
 };

@@ -817,28 +817,96 @@ def _fetch_with_jina_sync(url: str, timeout: float = 25.0) -> Optional[str]:
         return None
 
 
+async def _fetch_direct(url: str, timeout: float = 20.0) -> Optional[str]:
+    """
+    Fetch URL content directly with a browser User-Agent and extract text from HTML.
+    Used as a fallback when Jina Reader fails (blocked, timeout, 4xx/5xx).
+    """
+    from bs4 import BeautifulSoup
+
+    try:
+        client = get_async_client()
+        response = await client.get(url, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }, timeout=timeout, follow_redirects=True)
+
+        if response.status_code != 200:
+            logger.warning(f"Direct fetch returned {response.status_code} for {url}")
+            return None
+
+        content_type = response.headers.get("content-type", "")
+
+        # If plain text or markdown, return as-is
+        if "text/plain" in content_type or "text/markdown" in content_type:
+            return response.text
+
+        # For HTML, extract readable text
+        if "text/html" not in content_type and "application/xhtml" not in content_type:
+            logger.warning(f"Unsupported content type '{content_type}' for {url}")
+            return None
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Remove non-content elements
+        for tag in soup.find_all(["script", "style", "nav", "footer", "header",
+                                   "aside", "iframe", "noscript", "form"]):
+            tag.decompose()
+
+        # Try to find the main content area
+        main = (soup.find("article") or soup.find("main")
+                or soup.find(attrs={"role": "main"})
+                or soup.find("div", class_=re.compile(r"(content|post|article|entry|blog)", re.I)))
+
+        target = main if main else soup.body if soup.body else soup
+
+        # Extract text with newlines between block elements
+        lines = []
+        for element in target.stripped_strings:
+            lines.append(element)
+
+        text = "\n".join(lines)
+
+        # Basic quality check
+        if len(text) < 100:
+            logger.warning(f"Direct fetch yielded too little text ({len(text)} chars) for {url}")
+            return None
+
+        return text
+
+    except httpx.TimeoutException:
+        logger.warning(f"Timeout during direct fetch for {url}")
+        return None
+    except Exception as e:
+        logger.warning(f"Direct fetch failed for {url}: {e}")
+        return None
+
+
 async def _fetch_with_jina(url: str, timeout: float = 25.0) -> Optional[str]:
     """
-    Fetch article content using Jina Reader API (async).
-    Returns clean markdown content. Uses connection pooling.
+    Fetch article content using Jina Reader API (async), with direct fallback.
+    Returns clean markdown/text content. Uses connection pooling.
     """
+    # Try Jina Reader first
     try:
         jina_url = f"https://r.jina.ai/{url}"
         client = get_async_client()
         response = await client.get(jina_url, headers={
             "Accept": "text/plain",
         }, timeout=timeout)
-        if response.status_code == 200:
+        if response.status_code == 200 and len(response.text.strip()) >= 100:
             return response.text
         else:
-            logger.warning(f"Jina Reader returned {response.status_code} for {url}")
-            return None
+            logger.warning(f"Jina Reader returned {response.status_code} (len={len(response.text.strip()) if response.status_code == 200 else 'N/A'}) for {url}")
     except httpx.TimeoutException:
         logger.warning(f"Timeout while fetching content via Jina for {url}")
-        return None
     except Exception as e:
         logger.warning(f"Failed to fetch content via Jina for {url}: {e}")
-        return None
+
+    # Fallback: direct fetch with HTML extraction
+    logger.info(f"Falling back to direct fetch for {url}")
+    return await _fetch_direct(url, timeout=min(timeout, 20.0))
 
 
 async def _search_tavily(query: str, max_results: int = 5) -> str:
@@ -1143,7 +1211,8 @@ def extract_urls_from_text(text: str) -> List[str]:
 
 async def fetch_urls_from_message(message: str) -> tuple:
     """
-    Detect URLs in a user message and fetch their content via Jina Reader.
+    Detect URLs in a user message and fetch their content via Jina Reader
+    with direct HTTP fallback.
 
     Args:
         message: The user's message text
@@ -1156,7 +1225,7 @@ async def fetch_urls_from_message(message: str) -> tuple:
     if not urls:
         return ([], "")
 
-    logger.info(f"Found {len(urls)} URLs in message: {urls}")
+    print(f"🔗 Detected {len(urls)} URL(s) in message: {urls}")
 
     async def fetch_one(url: str):
         content = await _fetch_with_jina(url, timeout=25.0)
@@ -1167,9 +1236,11 @@ async def fetch_urls_from_message(message: str) -> tuple:
 
     context_parts = []
     fetched_urls = []
+    failed_urls = []
     for result in results:
         if isinstance(result, Exception):
             logger.warning(f"URL fetch failed: {result}")
+            failed_urls.append(str(result))
             continue
         url, content = result
         if content:
@@ -1179,8 +1250,13 @@ async def fetch_urls_from_message(message: str) -> tuple:
                 truncated += "\n... [content truncated]"
             context_parts.append(f"[Content from: {url}]\n{truncated}")
             fetched_urls.append(url)
+            print(f"  ✅ Fetched {len(content)} chars from {url}")
         else:
-            logger.warning(f"No content returned for URL: {url}")
+            failed_urls.append(url)
+            print(f"  ❌ Failed to fetch content from {url}")
+
+    if failed_urls:
+        print(f"🔗 URL fetch summary: {len(fetched_urls)} succeeded, {len(failed_urls)} failed")
 
     if not context_parts:
         return (urls, "")

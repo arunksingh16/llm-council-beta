@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
+import DirectChat from './components/DirectChat';
+import MCPDashboard from './components/MCPDashboard';
 import Settings from './components/Settings';
 import AuditLog from './components/AuditLog';
+import ThemeToggle from './components/ThemeToggle';
 import { api } from './api';
 import './App.css';
 import './components/StageCopyButtons.css';
@@ -25,6 +28,7 @@ function App() {
   const [searchProvider, setSearchProvider] = useState('duckduckgo');
   const [executionMode, setExecutionMode] = useState('full');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [appMode, setAppMode] = useState('council'); // 'council' or 'direct'
   const abortControllerRef = useRef(null);
   const requestIdRef = useRef(0);
   const isInitialMount = useRef(true);
@@ -187,7 +191,7 @@ function App() {
 
   const loadConversations = async (retryCount = 0) => {
     try {
-      const convs = await api.listConversations();
+      const convs = await api.listConversations('council');
       setConversations(convs);
     } catch (error) {
       console.error('Failed to load conversations:', error);
@@ -716,40 +720,93 @@ function App() {
 
   return (
     <div className="app">
+      <ThemeToggle />
+
+      {/* App Mode Toggle */}
+      <div className="app-mode-toggle">
+        <button
+          className={`app-mode-btn ${appMode === 'council' ? 'active' : ''}`}
+          onClick={() => setAppMode('council')}
+          title="Council Mode"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span>Council</span>
+        </button>
+        <button
+          className={`app-mode-btn ${appMode === 'direct' ? 'active' : ''}`}
+          onClick={() => setAppMode('direct')}
+          title="Direct Chat"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <span>Direct Chat</span>
+        </button>
+        <button
+          className={`app-mode-btn ${appMode === 'mcp' ? 'active' : ''}`}
+          onClick={() => setAppMode('mcp')}
+          title="MCP Tools"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+            <line x1="6" y1="6" x2="6.01" y2="6" />
+            <line x1="6" y1="18" x2="6.01" y2="18" />
+          </svg>
+          <span>MCP</span>
+        </button>
+      </div>
+
       {/* Mobile hamburger menu button */}
-      <button 
-        className="mobile-menu-btn" 
+      <button
+        className="mobile-menu-btn"
         onClick={() => setSidebarOpen(true)}
         aria-label="Open menu"
       >
         <span className="hamburger-icon"></span>
       </button>
 
-      <Sidebar
-        conversations={conversations}
-        currentConversationId={currentConversationId}
-        onSelectConversation={handleMobileSelectConversation}
-        onNewConversation={handleMobileNewConversation}
-        onDeleteConversation={handleDeleteConversation}
-        onOpenSettings={handleMobileOpenSettings}
-        isLoading={isLoading}
-        onAbort={handleAbort}
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
-      <ChatInterface
-        conversation={currentConversation}
-        onSendMessage={handleSendMessage}
-        onAbort={handleAbort}
-        isLoading={isLoading}
-        councilConfigured={councilConfigured}
-        councilModels={councilModels}
-        chairmanModel={chairmanModel}
-        searchProvider={searchProvider}
-        onOpenSettings={handleOpenSettings}
-        executionMode={executionMode}
-        onExecutionModeChange={setExecutionMode}
-      />
+      {appMode === 'council' ? (
+        <>
+          <Sidebar
+            conversations={conversations}
+            currentConversationId={currentConversationId}
+            onSelectConversation={handleMobileSelectConversation}
+            onNewConversation={handleMobileNewConversation}
+            onDeleteConversation={handleDeleteConversation}
+            onOpenSettings={handleMobileOpenSettings}
+            isLoading={isLoading}
+            onAbort={handleAbort}
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+          />
+          <ChatInterface
+            conversation={currentConversation}
+            onSendMessage={handleSendMessage}
+            onAbort={handleAbort}
+            isLoading={isLoading}
+            councilConfigured={councilConfigured}
+            councilModels={councilModels}
+            chairmanModel={chairmanModel}
+            searchProvider={searchProvider}
+            onOpenSettings={handleOpenSettings}
+            executionMode={executionMode}
+            onExecutionModeChange={setExecutionMode}
+          />
+        </>
+      ) : appMode === 'direct' ? (
+        <DirectChat
+          councilModels={councilModels}
+          onOpenSettings={handleOpenSettings}
+        />
+      ) : (
+        <MCPDashboard />
+      )}
       {showSettings && (
         <Settings
           onClose={handleSettingsClose}

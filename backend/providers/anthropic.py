@@ -14,13 +14,13 @@ class AnthropicProvider(LLMProvider):
         settings = get_settings()
         return settings.anthropic_api_key or ""
 
-    async def query(self, model_id: str, messages: List[Dict[str, str]], timeout: float = 120.0, temperature: float = 0.7) -> Dict[str, Any]:
+    async def query(self, model_id: str, messages: List[Dict[str, str]], timeout: float = 120.0, temperature: float = 0.7, tools: list = None) -> Dict[str, Any]:
         api_key = self._get_api_key()
         if not api_key:
             return {"error": True, "error_message": "Anthropic API key not configured"}
-            
+
         model = model_id.removeprefix("anthropic:")
-        
+
         # Convert messages to Anthropic format (system message is separate)
         system_message = ""
         filtered_messages = []
@@ -29,7 +29,7 @@ class AnthropicProvider(LLMProvider):
                 system_message = msg["content"]
             else:
                 filtered_messages.append(msg)
-        
+
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 payload = {
@@ -40,7 +40,9 @@ class AnthropicProvider(LLMProvider):
                 }
                 if system_message:
                     payload["system"] = system_message
-                    
+                if tools:
+                    payload["tools"] = tools
+
                 response = await client.post(
                     f"{self.BASE_URL}/messages",
                     headers={
@@ -50,17 +52,32 @@ class AnthropicProvider(LLMProvider):
                     },
                     json=payload
                 )
-                
+
                 if response.status_code != 200:
                     return {
-                        "error": True, 
+                        "error": True,
                         "error_message": f"Anthropic API error: {response.status_code} - {response.text}"
                     }
-                    
+
                 data = response.json()
+
+                # Check for tool use
+                if tools:
+                    from ..tool_use import extract_tool_calls_anthropic
+                    content, tool_calls, raw_message = extract_tool_calls_anthropic(data)
+                    if tool_calls:
+                        return {
+                            "content": content,
+                            "tool_calls": tool_calls,
+                            "raw_message": raw_message,
+                            "error": False,
+                        }
+                    if content:
+                        return {"content": content, "error": False}
+
                 content = data["content"][0]["text"]
                 return {"content": content, "error": False}
-                
+
         except Exception as e:
             return {"error": True, "error_message": str(e)}
 

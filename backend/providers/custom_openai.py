@@ -17,7 +17,7 @@ class CustomOpenAIProvider(LLMProvider):
         api_key = settings.custom_endpoint_api_key or ""
         return name, url, api_key
 
-    async def query(self, model_id: str, messages: List[Dict[str, str]], timeout: float = 120.0, temperature: float = 0.7) -> Dict[str, Any]:
+    async def query(self, model_id: str, messages: List[Dict[str, str]], timeout: float = 120.0, temperature: float = 0.7, tools: list = None) -> Dict[str, Any]:
         name, base_url, api_key = self._get_config()
 
         if not base_url:
@@ -35,15 +35,19 @@ class CustomOpenAIProvider(LLMProvider):
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
 
+            payload = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature
+            }
+            if tools:
+                payload["tools"] = tools
+
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
                     f"{base_url}/chat/completions",
                     headers=headers,
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "temperature": temperature
-                    }
+                    json=payload
                 )
 
                 if response.status_code != 200:
@@ -53,7 +57,17 @@ class CustomOpenAIProvider(LLMProvider):
                     }
 
                 data = response.json()
-                content = data["choices"][0]["message"]["content"]
+                from ..tool_use import extract_tool_calls_openai
+                content, tool_calls, raw_message = extract_tool_calls_openai(data)
+
+                if tool_calls:
+                    return {
+                        "content": content,
+                        "tool_calls": tool_calls,
+                        "raw_message": raw_message,
+                        "error": False,
+                    }
+
                 return {"content": content, "error": False}
 
         except Exception as e:

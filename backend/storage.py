@@ -64,6 +64,7 @@ def rebuild_index() -> List[Dict[str, Any]]:
                         "id": data["id"],
                         "created_at": data["created_at"],
                         "title": data.get("title", "New Conversation"),
+                        "type": data.get("type", "council"),
                         "message_count": len(data["messages"])
                     })
             except (json.JSONDecodeError, OSError):
@@ -87,6 +88,7 @@ def _update_index_entry(conversation: Dict[str, Any]):
         "id": conversation["id"],
         "created_at": conversation["created_at"],
         "title": conversation.get("title", "New Conversation"),
+        "type": conversation.get("type", "council"),
         "message_count": len(conversation["messages"])
     }
 
@@ -114,12 +116,13 @@ def _remove_from_index(conversation_id: str):
         _save_index(new_index)
 
 
-def create_conversation(conversation_id: str) -> Dict[str, Any]:
+def create_conversation(conversation_id: str, conv_type: str = "council") -> Dict[str, Any]:
     """
     Create a new conversation.
 
     Args:
         conversation_id: Unique identifier for the conversation
+        conv_type: Type of conversation - "council" or "direct"
 
     Returns:
         New conversation dict
@@ -130,6 +133,7 @@ def create_conversation(conversation_id: str) -> Dict[str, Any]:
         "id": conversation_id,
         "created_at": datetime.utcnow().isoformat(),
         "title": "New Conversation",
+        "type": conv_type,
         "messages": []
     }
 
@@ -180,10 +184,13 @@ def save_conversation(conversation: Dict[str, Any]):
     _update_index_entry(conversation)
 
 
-def list_conversations() -> List[Dict[str, Any]]:
+def list_conversations(conv_type: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     List all conversations (metadata only).
     Uses cached index file for O(1) performance.
+
+    Args:
+        conv_type: Optional filter - "council", "direct", or None for all
 
     Returns:
         List of conversation metadata dicts
@@ -192,11 +199,14 @@ def list_conversations() -> List[Dict[str, Any]]:
 
     # Try to load from index first
     index = _load_index()
-    
+
     # If index missing or invalid, rebuild it
     if index is None:
-        return rebuild_index()
-        
+        index = rebuild_index()
+
+    if conv_type:
+        return [c for c in index if c.get("type", "council") == conv_type]
+
     return index
 
 

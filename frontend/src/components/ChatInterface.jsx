@@ -8,6 +8,7 @@ import Stage2, { Stage2Skeleton } from './Stage2';
 import Stage3, { Stage3Skeleton } from './Stage3';
 import CouncilGrid from './CouncilGrid';
 import ExecutionModeToggle from './ExecutionModeToggle';
+import McpToolsPill from './McpToolsPill';
 import { api } from '../api';
 import './ChatInterface.css';
 
@@ -319,6 +320,8 @@ export default function ChatInterface({
                                 <span className="search-icon">🌐</span>
                                 {webSearch && <span className="search-label">Search On</span>}
                             </label>
+
+                            <McpToolsPill models={[...councilModels, chairmanModel].filter(Boolean)} />
 
                             <button
                                 type="button"

@@ -1,4 +1,4 @@
-/* Sidebar — Council Chamber */
+/* Sidebar -- Council Chamber */
 
 .sidebar {
   width: 280px;
@@ -15,13 +15,19 @@
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
 }
 
+[data-theme="light"] .sidebar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 1px 0 4px rgba(0, 0, 0, 0.06);
+}
+
 /* Header Area */
 .sidebar-header {
   padding: 20px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .sidebar-title-wrapper {
@@ -98,7 +104,7 @@
 /* New Council Button Section */
 .sidebar-actions {
   padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .new-council-btn {
@@ -149,7 +155,7 @@
 .search-input {
   width: 100%;
   padding: 10px 32px 10px 12px;
-  background: rgba(30, 41, 59, 0.5);
+  background: var(--bg-hover);
   border: 1px solid var(--border-glass);
   border-radius: 8px;
   color: var(--text-primary);
@@ -157,6 +163,11 @@
   font-size: 13px;
   transition: border-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
+}
+
+[data-theme="light"] .search-input {
+  background: #ffffff;
+  border-color: var(--border-color);
 }
 
 .search-input::placeholder {
@@ -187,7 +198,7 @@
 
 .search-clear:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-hover-strong);
 }
 
 /* Conversation List */
@@ -201,7 +212,7 @@
 }
 
 .conversation-item {
-  background: rgba(30, 41, 59, 0.35);
+  background: var(--bg-hover);
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-glass);
   border-radius: 12px;
@@ -210,16 +221,33 @@
   transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+[data-theme="light"] .conversation-item {
+  backdrop-filter: none;
+  background: #ffffff;
+  border-color: var(--border-color);
+}
+
 .conversation-item:hover {
-  background: rgba(30, 41, 59, 0.55);
+  background: var(--bg-hover-strong);
   border-color: rgba(59, 130, 246, 0.25);
   transform: translateX(4px);
+}
+
+[data-theme="light"] .conversation-item:hover {
+  background: #f1f5f9;
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 .conversation-item.active {
   background: var(--accent-primary-dim);
   border-color: rgba(59, 130, 246, 0.45);
   box-shadow: 0 0 24px rgba(59, 130, 246, 0.18);
+}
+
+[data-theme="light"] .conversation-item.active {
+  background: #eff6ff;
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.1);
 }
 
 .sidebar-empty-state {
@@ -232,8 +260,7 @@
 .conversation-title {
   font-size: 14px;
   font-weight: 500;
-  color: #e2e8f0;
-  /* Force slate-200 */
+  color: var(--conversation-title-color);
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -337,7 +364,7 @@
   right: 16px;
   width: 36px;
   height: 36px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--bg-hover-strong);
   border: 1px solid var(--border-glass);
   border-radius: 8px;
   color: var(--text-primary);

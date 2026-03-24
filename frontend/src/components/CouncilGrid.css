@@ -122,7 +122,25 @@
     box-shadow: var(--shadow-soft);
 }
 
-/* ... existing styles ... */
+[data-theme="light"] .council-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-top: 3px solid var(--provider-color, #3b82f6);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .council-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .council-card.chairman {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-top: 3px solid #f59e0b;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
 
 .model-name {
     font-family: var(--font-ui);
@@ -143,8 +161,8 @@
     bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(15, 23, 42, 0.95);
-    color: #f8fafc;
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
     padding: 6px 10px;
     border-radius: 6px;
     font-size: 12px;
@@ -153,7 +171,7 @@
     z-index: 100;
     pointer-events: none;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--tooltip-border);
     margin-bottom: 5px;
 }
 
@@ -173,12 +191,10 @@
     width: 100%;
 }
 
-/* ... existing styles ... */
-
 .custom-tooltip {
     position: fixed;
-    background: rgba(15, 23, 42, 0.95);
-    color: #f8fafc;
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
     padding: 6px 10px;
     border-radius: 6px;
     font-size: 12px;
@@ -187,9 +203,8 @@
     z-index: 9999;
     pointer-events: none;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--tooltip-border);
     transform: translate(-50%, 20px);
-    /* Center horizontally, push down vertically */
 }
 
 .role-badge.member {
@@ -204,6 +219,16 @@
     border-bottom: 1px solid rgba(251, 191, 36, 0.3);
 }
 
+[data-theme="light"] .role-badge.member {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+}
+
+[data-theme="light"] .role-badge.chairman {
+    background: rgba(251, 191, 36, 0.15);
+    color: #b45309;
+}
+
 /* Chairman */
 .council-card.chairman {
     border: 1px solid rgba(251, 191, 36, 0.35);
@@ -211,11 +236,15 @@
     box-shadow: var(--shadow-soft), 0 0 20px rgba(251, 191, 36, 0.08);
 }
 
-/* Hover — only when idle/ready */
+/* Hover -- only when idle/ready */
 .council-card.ready:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.12);
+    border-color: var(--border-subtle);
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .council-card.ready:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .council-card.chairman.ready:hover {
@@ -225,16 +254,15 @@
 
 /* Active (thinking) */
 .council-card.active {
-    background: rgba(30, 41, 59, 0.75);
+    background: var(--bg-surface);
     border-color: var(--provider-color);
     box-shadow: 0 0 20px var(--accent-primary-dim);
 }
 
 /* Done State */
 .council-card.done {
-    background: rgba(30, 41, 59, 0.5);
+    background: var(--bg-hover);
     border-color: rgba(16, 185, 129, 0.3);
-    /* Green tint */
 }
 
 /* Waiting/Queued State */
@@ -255,6 +283,11 @@
     margin-bottom: 10px;
     position: relative;
     border: 2px solid transparent;
+}
+
+[data-theme="light"] .council-avatar {
+    background: var(--provider-color, #64748b);
+    border-radius: 12px;
 }
 
 .council-card.active .council-avatar {
@@ -311,7 +344,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid #1e293b;
+    border: 2px solid var(--done-badge-border);
     z-index: 3;
     animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }

@@ -11,7 +11,7 @@ import json
 import asyncio
 
 from . import storage
-from .council import generate_conversation_title, generate_search_query, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings, PROVIDERS
+from .council import generate_conversation_title, generate_search_query, stage1_collect_responses, stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings, build_conversation_history, PROVIDERS
 from .search import perform_web_search, SearchProvider, fetch_urls_from_message
 from .file_extract import extract_text
 from .settings import get_settings, update_settings, Settings, DEFAULT_COUNCIL_MODELS, DEFAULT_CHAIRMAN_MODEL, AVAILABLE_MODELS
@@ -35,7 +35,7 @@ app.add_middleware(
 
 class CreateConversationRequest(BaseModel):
     """Request to create a new conversation."""
-    pass
+    type: Optional[str] = "council"  # "council" or "direct"
 
 
 class SendMessageRequest(BaseModel):
@@ -69,17 +69,18 @@ async def root():
     return {"status": "ok", "service": "LLM Council API"}
 
 
-@app.get("/api/conversations", response_model=List[ConversationMetadata])
-async def list_conversations():
-    """List all conversations (metadata only)."""
-    return storage.list_conversations()
+@app.get("/api/conversations")
+async def list_conversations(type: Optional[str] = None):
+    """List all conversations (metadata only). Optional type filter: 'council' or 'direct'."""
+    return storage.list_conversations(conv_type=type)
 
 
-@app.post("/api/conversations", response_model=Conversation)
+@app.post("/api/conversations")
 async def create_conversation(request: CreateConversationRequest):
     """Create a new conversation."""
     conversation_id = str(uuid.uuid4())
-    conversation = storage.create_conversation(conversation_id)
+    conv_type = request.type if request.type in ("council", "direct") else "council"
+    conversation = storage.create_conversation(conversation_id, conv_type=conv_type)
     return conversation
 
 
@@ -245,6 +246,9 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
             # Use combined_context for all stages
             search_context = combined_context
 
+            # Build conversation history from prior turns
+            conversation_history = build_conversation_history(conversation["messages"])
+
             # Detect query type and assign roles for Stage 1
             from .council import detect_query_type, assign_roles
             from .config import get_council_models
@@ -259,7 +263,7 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
             
             total_models = 0
             
-            async for item in stage1_collect_responses(body.content, search_context, request):
+            async for item in stage1_collect_responses(body.content, search_context, request, conversation_history):
                 if isinstance(item, int):
                     total_models = item
                     print(f"DEBUG: Sending stage1_init with total={total_models}")
@@ -316,7 +320,7 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
                     print("Client disconnected before Stage 3")
                     raise asyncio.CancelledError("Client disconnected")
 
-                stage3_result = await stage3_synthesize_final(body.content, stage1_results, stage2_results, search_context)
+                stage3_result = await stage3_synthesize_final(body.content, stage1_results, stage2_results, search_context, conversation_history)
                 yield f"data: {json.dumps({'type': 'stage3_complete', 'data': stage3_result})}\n\n"
 
             # Wait for title generation if it was started
@@ -371,6 +375,171 @@ async def send_message_stream(conversation_id: str, body: SendMessageRequest, re
             # Save error to conversation history
             storage.add_error_message(conversation_id, f"Error: {str(e)}")
             # Send error event
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
+
+
+class DirectChatRequest(BaseModel):
+    """Request for direct single-model chat."""
+    conversation_id: str
+    model: str
+    content: str
+    temperature: Optional[float] = 0.7
+    web_search: bool = False
+    attached_content: Optional[str] = None
+    attached_files: Optional[List[str]] = None
+
+
+@app.post("/api/direct-chat/stream")
+async def direct_chat_stream(body: DirectChatRequest, request: Request):
+    """Stream a direct chat response from a single model, with history persistence."""
+    from .council import query_model, generate_conversation_title
+    from .search import fetch_urls_from_message, extract_urls_from_text
+
+    # Load conversation (must exist)
+    conversation = storage.get_conversation(body.conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    is_first_message = len(conversation["messages"]) == 0
+
+    async def event_generator():
+        try:
+            # Save user message
+            storage.add_user_message(body.conversation_id, body.content)
+
+            # Title generation for first message
+            title_task = None
+            if is_first_message:
+                title_task = asyncio.create_task(generate_conversation_title(body.content))
+
+            # 1. Web search if requested
+            search_context = ""
+            if body.web_search:
+                settings = get_settings()
+                provider = SearchProvider(settings.search_provider)
+
+                if settings.serper_api_key and provider == SearchProvider.SERPER:
+                    os.environ["SERPER_API_KEY"] = settings.serper_api_key
+                if settings.tavily_api_key and provider == SearchProvider.TAVILY:
+                    os.environ["TAVILY_API_KEY"] = settings.tavily_api_key
+                if settings.brave_api_key and provider == SearchProvider.BRAVE:
+                    os.environ["BRAVE_API_KEY"] = settings.brave_api_key
+
+                yield f"data: {json.dumps({'type': 'search_start', 'data': {'provider': provider.value}})}\n\n"
+
+                search_query = generate_search_query(body.content)
+                search_result = await perform_web_search(
+                    search_query,
+                    settings.search_result_count,
+                    provider,
+                    settings.full_content_results,
+                    settings.search_keyword_extraction,
+                )
+                search_context = search_result["results"]
+                yield f"data: {json.dumps({'type': 'search_complete', 'data': {'search_query': search_query, 'search_context': search_context, 'provider': provider.value}})}\n\n"
+
+            # 2. Auto-fetch URLs from user message
+            url_context = ""
+            try:
+                detected_urls = extract_urls_from_text(body.content)
+                if detected_urls:
+                    yield f"data: {json.dumps({'type': 'url_fetch_start', 'data': {'urls': detected_urls}})}\n\n"
+                    fetched_urls, url_context = await fetch_urls_from_message(body.content)
+                    yield f"data: {json.dumps({'type': 'url_fetch_complete', 'data': {'urls': fetched_urls, 'count': len(fetched_urls)}})}\n\n"
+            except Exception as e:
+                print(f"URL fetch error in direct chat: {e}")
+
+            # 3. Merge all context
+            combined_context = search_context
+            if url_context:
+                combined_context = (combined_context + "\n\n" + url_context) if combined_context else url_context
+            if body.attached_content:
+                file_header = "The user has attached the following files:\n\n" + body.attached_content
+                combined_context = (combined_context + "\n\n" + file_header) if combined_context else file_header
+
+            # 4. Build messages from conversation history
+            conv = storage.get_conversation(body.conversation_id)
+            messages = []
+            for msg in conv["messages"]:
+                if msg["role"] == "user":
+                    messages.append({"role": "user", "content": msg["content"]})
+                elif msg["role"] == "assistant" and msg.get("content"):
+                    messages.append({"role": "assistant", "content": msg["content"]})
+
+            # Inject context into the last user message
+            if combined_context and messages:
+                last = messages[-1]
+                if last["role"] == "user":
+                    messages[-1] = {
+                        "role": "user",
+                        "content": f"{combined_context}\n\n---\n\nUser question: {last['content']}"
+                    }
+
+            yield f"data: {json.dumps({'type': 'response_start', 'data': {'model': body.model}})}\n\n"
+
+            if await request.is_disconnected():
+                raise asyncio.CancelledError("Client disconnected")
+
+            from .tool_use import query_model_with_tools
+            response = await query_model_with_tools(body.model, messages, temperature=body.temperature)
+
+            assistant_content = ""
+            if response and response.get('error'):
+                error_msg = response.get('error_message', 'Unknown error')
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+                assistant_content = f"Error: {error_msg}"
+            elif response:
+                content = response.get('content', '')
+                if not isinstance(content, str):
+                    content = str(content) if content is not None else ''
+                assistant_content = content
+                tool_log = response.get('tool_use_log', [])
+                yield f"data: {json.dumps({'type': 'response_complete', 'data': {'model': body.model, 'content': content, 'tool_use_log': tool_log}})}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'No response from model'})}\n\n"
+                assistant_content = "Error: No response from model"
+
+            # Save assistant message to conversation
+            conv = storage.get_conversation(body.conversation_id)
+            if conv:
+                conv["messages"].append({
+                    "role": "assistant",
+                    "content": assistant_content,
+                    "model": body.model,
+                })
+                storage.save_conversation(conv)
+
+            # Handle title
+            if title_task:
+                try:
+                    title = await title_task
+                    storage.update_conversation_title(body.conversation_id, title)
+                    yield f"data: {json.dumps({'type': 'title_complete', 'data': {'title': title}})}\n\n"
+                except Exception:
+                    pass
+
+            yield f"data: {json.dumps({'type': 'complete'})}\n\n"
+
+        except asyncio.CancelledError:
+            print("Direct chat stream cancelled")
+            if title_task:
+                try:
+                    title = await asyncio.wait_for(title_task, timeout=2.0)
+                    storage.update_conversation_title(body.conversation_id, title)
+                except Exception:
+                    pass
+            raise
+        except Exception as e:
+            print(f"Direct chat error: {e}")
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
     return StreamingResponse(
@@ -1236,6 +1405,137 @@ async def clear_audit_logs():
     """Clear all audit log entries."""
     audit_log.clear()
     return {"status": "cleared"}
+
+
+# ============================================================
+# MCP Server Management Endpoints
+# ============================================================
+from .mcp_manager import mcp_manager
+
+
+@app.on_event("startup")
+async def startup_load_mcp():
+    """Load MCP server configs from settings on startup."""
+    settings = get_settings()
+    if settings.mcp_servers:
+        mcp_manager.load_from_settings(settings.mcp_servers)
+        # Auto-connect enabled servers in background
+        asyncio.create_task(mcp_manager.refresh_all())
+
+
+@app.on_event("shutdown")
+async def shutdown_mcp():
+    """Disconnect all MCP servers on shutdown."""
+    await mcp_manager.shutdown()
+
+
+@app.get("/api/mcp/health")
+async def mcp_health():
+    """Get MCP system health summary."""
+    return mcp_manager.get_health_summary()
+
+
+@app.get("/api/mcp/servers")
+async def mcp_list_servers():
+    """List all configured MCP servers with status."""
+    return mcp_manager.get_all_status()
+
+
+class AddMCPServerRequest(BaseModel):
+    name: str
+    type: str = "http"  # "http" or "stdio"
+    url: Optional[str] = None
+    command: Optional[str] = None
+    args: Optional[List[str]] = None
+    env: Optional[Dict[str, str]] = None
+    headers: Optional[Dict[str, str]] = None
+    enabled: bool = True
+
+
+@app.post("/api/mcp/servers")
+async def mcp_add_server(req: AddMCPServerRequest):
+    """Add a new MCP server and attempt to connect."""
+    config = {
+        "id": str(uuid.uuid4())[:8],
+        "name": req.name,
+        "type": req.type,
+        "url": req.url,
+        "command": req.command,
+        "args": req.args or [],
+        "env": req.env or {},
+        "headers": req.headers or {},
+        "enabled": req.enabled,
+    }
+
+    result = await mcp_manager.add_server(config)
+
+    # Persist to settings
+    settings = get_settings()
+    servers = list(settings.mcp_servers)
+    servers.append(config)
+    update_settings(mcp_servers=servers)
+
+    return result
+
+
+@app.delete("/api/mcp/servers/{server_id}")
+async def mcp_remove_server(server_id: str):
+    """Remove an MCP server."""
+    removed = await mcp_manager.remove_server(server_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="MCP server not found")
+
+    # Persist removal to settings
+    settings = get_settings()
+    servers = [s for s in settings.mcp_servers if s.get("id") != server_id]
+    update_settings(mcp_servers=servers)
+
+    return {"status": "removed"}
+
+
+@app.post("/api/mcp/servers/{server_id}/connect")
+async def mcp_connect_server(server_id: str):
+    """Connect to a specific MCP server."""
+    success = await mcp_manager.connect_server(server_id)
+    server = mcp_manager.get_server(server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="MCP server not found")
+    return server.to_status_dict()
+
+
+@app.post("/api/mcp/servers/{server_id}/disconnect")
+async def mcp_disconnect_server(server_id: str):
+    """Disconnect from a specific MCP server."""
+    success = await mcp_manager.disconnect_server(server_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="MCP server not found")
+    return {"status": "disconnected"}
+
+
+@app.get("/api/mcp/servers/{server_id}/tools")
+async def mcp_server_tools(server_id: str):
+    """Get tools from a specific MCP server."""
+    server = mcp_manager.get_server(server_id)
+    if not server:
+        raise HTTPException(status_code=404, detail="MCP server not found")
+    return {"tools": server.tools, "connected": server.connected}
+
+
+@app.get("/api/mcp/tools")
+async def mcp_all_tools():
+    """Get all available tools across all connected MCP servers."""
+    return {"tools": mcp_manager.get_all_tools()}
+
+
+@app.post("/api/mcp/refresh")
+async def mcp_refresh_all():
+    """Refresh all MCP server connections and tool lists."""
+    results = await mcp_manager.refresh_all()
+    return {
+        "results": results,
+        "health": mcp_manager.get_health_summary(),
+        "servers": mcp_manager.get_all_status(),
+    }
 
 
 if __name__ == "__main__":

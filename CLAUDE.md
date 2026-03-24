@@ -69,28 +69,37 @@ This fixes binary incompatibilities (e.g., `@rollup/rollup-darwin-*` variants).
 
 | Module | Purpose |
 |--------|---------|
-| `council.py` | Orchestration: stage1/2/3 collection, rankings, title generation |
-| `search.py` | Web search: DuckDuckGo, Tavily, Brave with Jina Reader content fetch |
+| `council.py` | Orchestration: stage1/2/3 collection, rankings, title generation, conversation history |
+| `search.py` | Web search: DuckDuckGo, Tavily, Brave with Jina Reader + direct HTTP fallback |
 | `settings.py` | Config management, persisted to `data/settings.json` |
 | `prompts.py` | Default system prompts for all stages |
-| `main.py` | FastAPI app with streaming SSE endpoint |
-| `storage.py` | Conversation persistence in `data/conversations/{id}.json` |
+| `main.py` | FastAPI app with streaming SSE endpoints (council + direct chat) |
+| `storage.py` | Conversation persistence with type separation (`council`/`direct`) |
+| `mcp_manager.py` | MCP client manager: connect to MCP servers (stdio/HTTP), discover tools, health checks |
 
 ### Frontend (`frontend/src/`)
 
 | Component | Purpose |
 |-----------|---------|
-| `App.jsx` | Main orchestration, SSE streaming, conversation state |
+| `App.jsx` | Main orchestration, SSE streaming, conversation state, app mode toggle |
 | `ChatInterface.jsx` | User input, web search toggle, execution mode |
+| `DirectChat.jsx` | One-on-one model chat with history, file attachments, web search |
+| `MCPDashboard.jsx` | MCP server management: health, tools, add/remove servers |
 | `Stage1.jsx` | Tab view of individual model responses |
 | `Stage2.jsx` | Peer rankings with de-anonymization, aggregate scores |
 | `Stage3.jsx` | Chairman synthesis (final answer) |
 | `CouncilGrid.jsx` | Visual grid of council members with provider icons |
 | `Settings.jsx` | 5-section settings: LLM API Keys, Council Config, System Prompts, Search Providers, Backup & Reset |
 | `Sidebar.jsx` | Conversation list with inline delete confirmation |
+| `ThemeToggle.jsx` | Light/dark theme toggle with localStorage persistence |
 | `SearchableModelSelect.jsx` | Searchable dropdown for model selection |
 
-**Styling**: "Council Chamber" dark theme (refined Midnight Glass). CSS variables in `index.css` (`--font-display`: Syne, `--font-ui`: Plus Jakarta Sans, `--font-content`: Source Serif 4, `--font-code`: JetBrains Mono). Primary accent blue (#3b82f6), chairman gold (#fbbf24). Staggered hero/card animations; glass panels with backdrop-filter.
+**Styling**: Light/dark theme with CSS variables in `index.css` (`--font-display`: Syne, `--font-ui`: Plus Jakarta Sans, `--font-content`: Source Serif 4, `--font-code`: JetBrains Mono). Primary accent blue (#3b82f6), chairman gold (#fbbf24). Theme toggle persists to localStorage. Light theme uses clean white cards with subtle shadows.
+
+**App Modes**: Three modes accessible via top-center toggle:
+- **Council**: Full 3-stage deliberation with sidebar conversation history
+- **Direct Chat**: One-on-one model chat with conversation persistence, file attachments, web search
+- **MCP**: Dashboard for managing MCP server connections and viewing available tools
 
 ## Critical Implementation Details
 
@@ -200,22 +209,88 @@ useEffect(() => {
 
 10. **Azure OpenAI `max_tokens`**: Newer Azure models (gpt-5.4, o-series) reject `max_tokens` — use `max_completion_tokens` instead. The Azure provider handles this.
 
+## Conversation Types
+
+Conversations have a `type` field to separate council and direct chat histories:
+- `"council"` (default) — full 3-stage deliberation conversations
+- `"direct"` — one-on-one model chat conversations
+
+The `storage.list_conversations(conv_type=)` filter and `GET /api/conversations?type=` query param enable separation. Old conversations without a type field default to `"council"`.
+
+## Conversation History in Council
+
+Follow-up messages in council mode now have context from prior turns. The `build_conversation_history()` function in `council.py`:
+- Extracts user query + chairman synthesis (Stage 3) per turn
+- Falls back to Stage 1 first response for `chat_only` mode
+- Truncates long answers to 1500 chars, limits to last 5 turns
+- History is passed to Stage 1 (all members) and Stage 3 (chairman)
+- Stage 2 (ranking) stays stateless — comparing current responses only
+
+## MCP (Model Context Protocol) Integration
+
+**Architecture**: Backend acts as MCP client connecting to external MCP servers.
+
+**Module**: `backend/mcp_manager.py`
+- `MCPServerConnection` — handles HTTP (Streamable HTTP) and stdio transports
+- `MCPManager` singleton — manages multiple server connections
+- JSON-RPC protocol: `initialize`, `tools/list`, `ping`, `tools/call`
+- Configs persisted in `settings.mcp_servers`
+
+**API Endpoints**:
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/mcp/health` | GET | Overall health summary |
+| `/api/mcp/servers` | GET/POST | List or add MCP servers |
+| `/api/mcp/servers/{id}` | DELETE | Remove server |
+| `/api/mcp/servers/{id}/connect` | POST | Connect to server |
+| `/api/mcp/servers/{id}/disconnect` | POST | Disconnect |
+| `/api/mcp/tools` | GET | All tools across connected servers |
+| `/api/mcp/refresh` | POST | Refresh all connections |
+
+**Adding Excalidraw MCP**: In the MCP dashboard, add server with name "Excalidraw" and URL `https://mcp.excalidraw.com/mcp`.
+
+## Direct Chat
+
+One-on-one model conversations with full features:
+- **Conversation persistence**: Separate history from council (`type: "direct"`)
+- **File attachments**: Upload text/PDF files, content extracted and sent as context
+- **Web search**: Toggle web search per message (same search infra as council)
+- **URL auto-fetch**: URLs in messages are automatically fetched and included as context
+- **Model selection**: Searchable dropdown with all configured providers
+- **Temperature control**: Per-conversation temperature slider
+
 ## Data Flow
 
+### Council Flow
 ```
-User Query (+ optional web search)
+User Query (+ optional web search + conversation history)
     ↓
-[Web Search: DuckDuckGo/Tavily/Brave + Jina Reader]
+[Web Search: DuckDuckGo/Tavily/Brave + Jina Reader + direct HTTP fallback]
     ↓
-Stage 1: Parallel queries → Stream individual responses
+[URL auto-fetch + file attachments → merged context]
+    ↓
+Stage 1: Parallel queries with history → Stream individual responses
     ↓
 Stage 2: Anonymize → Parallel peer rankings → Parse rankings
     ↓
 Calculate aggregate rankings
     ↓
-Stage 3: Chairman synthesis → Stream final answer
+Stage 3: Chairman synthesis with history → Stream final answer
     ↓
-Save conversation (stage1, stage2, stage3 only)
+Save conversation (stage1, stage2, stage3 + metadata)
+```
+
+### Direct Chat Flow
+```
+User Message (+ optional web search + file attachments)
+    ↓
+[Web Search + URL auto-fetch → merged context]
+    ↓
+Build messages from full conversation history
+    ↓
+Query single model → Stream response
+    ↓
+Save to conversation storage
 ```
 
 ## Execution Modes
@@ -297,6 +372,7 @@ curl https://your-endpoint.com/v1/models -H "Authorization: Bearer $API_KEY"
 
 ## Future Enhancements
 
+- **MCP Phase 2**: Function calling integration — models can invoke MCP tools during conversations
 - Model performance analytics over time
 - Export conversations to markdown/PDF
 - Custom ranking criteria (beyond accuracy/insight)

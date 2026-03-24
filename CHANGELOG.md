@@ -5,6 +5,29 @@ All notable changes to LLM Council Plus will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-23
+
+### Added
+- **Direct Chat**: One-on-one model conversations with full history persistence, file attachments, web search, and URL auto-fetching. Accessible via "Direct Chat" tab in the app mode toggle.
+- **MCP Dashboard (Phase 1)**: Model Context Protocol infrastructure for connecting to external tool servers (Excalidraw, etc.). Backend MCP client manager supports HTTP (Streamable HTTP) and stdio transports with JSON-RPC protocol. Dashboard UI shows system health, connected servers, available tools, and server management (add/remove/connect/disconnect).
+- **Conversation History in Council**: Follow-up messages now carry context from prior turns. `build_conversation_history()` extracts user queries + chairman synthesis for up to 5 previous turns, passed to Stage 1 members and Stage 3 chairman.
+- **Conversation Type Separation**: Conversations now have a `type` field ("council" or "direct") to keep council and direct chat histories separate. List API supports `?type=` filter.
+- **Light/Dark Theme Toggle**: Full theme system with CSS variables, `ThemeToggle` component, and localStorage persistence. Provider icons use colored avatar backgrounds for visibility on light backgrounds.
+- **URL Fetch Fallback**: Direct HTTP fetcher with BeautifulSoup when Jina Reader fails (HTTP 451 blocked). Uses browser User-Agent and extracts from article/main elements.
+- **App Mode Toggle**: Three-way navigation — Council, Direct Chat, MCP — via pill-style toggle at top center
+
+### Changed
+- **Version bump**: 0.3.1 → 0.4.0
+- **Storage module**: `create_conversation()` accepts `conv_type` parameter, `list_conversations()` accepts optional `conv_type` filter, index entries include `type` field
+- **Settings**: Added `mcp_servers` list for MCP server configurations
+- **UI fonts**: Switched MCP dashboard and stat cards from Syne (italic/heavy) to Plus Jakarta Sans for readability
+- **Layout fixes**: Added top padding to ChatInterface, DirectChat, and MCP Dashboard to prevent overlap with fixed mode toggle
+
+### Fixed
+- SVG provider icons invisible on white/light backgrounds (9/11 icons used `fill="#ffffff"`)
+- Settings modal hardcoded dark colors on light theme (45+ rgba values replaced with CSS variables)
+- SearchableModelSelect hardcoded dark-theme inline styles replaced with CSS variable lookups
+
 ## [0.3.1] - 2026-03-20
 
 ### Added

@@ -148,7 +148,67 @@ async def query_models_parallel(models: List[str], messages: List[Dict[str, str]
     return dict(results)
 
 
-async def stage1_collect_responses(user_query: str, search_context: str = "", request: Any = None) -> Any:
+def build_conversation_history(messages: List[Dict[str, Any]], max_turns: int = 5) -> str:
+    """
+    Extract concise conversation history from stored messages for context.
+
+    For each prior turn, includes the user's question and the chairman's
+    synthesis (Stage 3). Falls back to the first successful Stage 1 response
+    if Stage 3 is not available (e.g., chat_only mode).
+
+    Args:
+        messages: List of stored conversation messages
+        max_turns: Maximum number of prior turns to include (to limit context size)
+
+    Returns:
+        Formatted history string, or empty string if no history
+    """
+    turns = []
+
+    # Walk through messages pairing user -> assistant
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        if msg["role"] == "user":
+            user_content = msg.get("content", "")
+            # Look for the next assistant message
+            assistant_summary = None
+            if i + 1 < len(messages) and messages[i + 1]["role"] == "assistant":
+                asst = messages[i + 1]
+                # Prefer Stage 3 chairman synthesis
+                if asst.get("stage3") and isinstance(asst["stage3"], dict):
+                    assistant_summary = asst["stage3"].get("response", "")
+                # Fallback: direct chat content
+                elif asst.get("content") and isinstance(asst.get("content"), str):
+                    assistant_summary = asst["content"]
+                # Fallback: first successful Stage 1 response
+                elif asst.get("stage1") and isinstance(asst["stage1"], list):
+                    for r in asst["stage1"]:
+                        if r.get("response") and not r.get("error"):
+                            assistant_summary = r["response"]
+                            break
+                i += 2
+            else:
+                i += 1
+
+            if user_content and assistant_summary:
+                # Truncate long responses to keep context manageable
+                if len(assistant_summary) > 1500:
+                    assistant_summary = assistant_summary[:1500] + "..."
+                turns.append(f"User: {user_content}\nCouncil Answer: {assistant_summary}")
+        else:
+            i += 1
+
+    if not turns:
+        return ""
+
+    # Take only the last N turns
+    turns = turns[-max_turns:]
+
+    return "PREVIOUS CONVERSATION:\n" + "\n\n".join(turns) + "\n---\n"
+
+
+async def stage1_collect_responses(user_query: str, search_context: str = "", request: Any = None, conversation_history: str = "") -> Any:
     """
     Stage 1: Collect individual responses from all council models.
     Each model receives a role-specialized, query-adaptive prompt.
@@ -157,6 +217,7 @@ async def stage1_collect_responses(user_query: str, search_context: str = "", re
         user_query: The user's question
         search_context: Optional web search results to provide context
         request: FastAPI request object for checking disconnects
+        conversation_history: Optional formatted history from prior turns
 
     Yields:
         - First yield: total_models (int)
@@ -208,12 +269,17 @@ async def stage1_collect_responses(user_query: str, search_context: str = "", re
             logger.warning(f"Error formatting Stage 1 prompt for {model_id}: {e}. Using fallback.")
             prompt = f"{role['instruction']}\n\n{search_context_block}Question: {user_query}" if search_context_block else f"{role['instruction']}\n\nQuestion: {user_query}"
 
+        # Prepend conversation history if available
+        if conversation_history:
+            prompt = conversation_history + "\n" + prompt
+
         return [{"role": "user", "content": prompt}]
 
     async def _query_safe(m: str):
         try:
+            from .tool_use import query_model_with_tools
             msgs = build_prompt_for_model(m)
-            return m, await query_model(m, msgs, temperature=council_temp)
+            return m, await query_model_with_tools(m, msgs, temperature=council_temp)
         except Exception as e:
             return m, {"error": True, "error_message": str(e)}
 
@@ -264,6 +330,9 @@ async def stage1_collect_responses(user_query: str, search_context: str = "", re
                                 "role": role.get("name", "Analyst"),
                                 "role_id": role.get("id", ""),
                             }
+                            # Include tool use log if tools were called
+                            if response.get("tool_use_log"):
+                                result["tool_use_log"] = response["tool_use_log"]
                     
                     if result:
                         yield result
@@ -420,7 +489,8 @@ async def stage3_synthesize_final(
     user_query: str,
     stage1_results: List[Dict[str, Any]],
     stage2_results: List[Dict[str, Any]],
-    search_context: str = ""
+    search_context: str = "",
+    conversation_history: str = ""
 ) -> Dict[str, Any]:
     """
     Stage 3: Chairman synthesizes final response.
@@ -429,6 +499,8 @@ async def stage3_synthesize_final(
         user_query: The original user query
         stage1_results: Individual model responses from Stage 1
         stage2_results: Rankings from Stage 2
+        search_context: Optional web search context
+        conversation_history: Optional formatted history from prior turns
 
     Returns:
         Dict with 'model' and 'response' keys
@@ -470,16 +542,23 @@ async def stage3_synthesize_final(
         logger.warning(f"Error formatting Stage 3 prompt: {e}. Using fallback.")
         chairman_prompt = f"Question: {user_query}\n\nSynthesis required."
 
+    # Prepend conversation history if available
+    if conversation_history:
+        chairman_prompt = conversation_history + "\n" + chairman_prompt
+
     # Determine message structure based on whether the prompt is default or custom
     from .prompts import STAGE3_PROMPT_DEFAULT
-    
+
     # Check if we are using the default prompt (or if it's empty/None, which falls back to default)
     is_default_prompt = (not settings.stage3_prompt) or (settings.stage3_prompt.strip() == STAGE3_PROMPT_DEFAULT.strip())
 
     if is_default_prompt:
         # If using default, split into System (Persona) and User (Data) for better adherence at low temp
+        system_msg = "You are the Chairman of an LLM Council. Your role is to critically evaluate analyst responses, resolve conflicts, correct errors, and produce the best possible answer — not a diplomatic merge."
+        if conversation_history:
+            system_msg += " This is a multi-turn conversation — consider the prior discussion when synthesizing your answer."
         messages = [
-            {"role": "system", "content": "You are the Chairman of an LLM Council. Your role is to critically evaluate analyst responses, resolve conflicts, correct errors, and produce the best possible answer — not a diplomatic merge."},
+            {"role": "system", "content": system_msg},
             {"role": "user", "content": chairman_prompt}
         ]
     else:
@@ -491,7 +570,8 @@ async def stage3_synthesize_final(
     chairman_temp = settings.chairman_temperature
 
     try:
-        response = await query_model(chairman_model, messages, temperature=chairman_temp)
+        from .tool_use import query_model_with_tools
+        response = await query_model_with_tools(chairman_model, messages, temperature=chairman_temp)
 
         # Check for error in response
         if response is None or response.get('error'):

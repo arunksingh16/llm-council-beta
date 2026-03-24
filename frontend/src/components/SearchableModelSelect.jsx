@@ -80,12 +80,14 @@ export default function SearchableModelSelect({
     }
   }
 
-  // Custom styles to match the dark theme
+  // Read CSS custom properties for theme-aware styling
+  const getVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
   const customStyles = {
     control: (base, state) => ({
       ...base,
-      backgroundColor: 'rgba(30, 41, 59, 0.8)',
-      borderColor: state.isFocused ? '#3b82f6' : 'rgba(148, 163, 184, 0.2)',
+      backgroundColor: getVar('--bg-input'),
+      borderColor: state.isFocused ? '#3b82f6' : getVar('--border-color'),
       borderRadius: '8px',
       minHeight: '38px',
       boxShadow: state.isFocused ? '0 0 0 2px rgba(59, 130, 246, 0.3)' : 'none',
@@ -95,10 +97,10 @@ export default function SearchableModelSelect({
     }),
     menu: (base) => ({
       ...base,
-      backgroundColor: 'rgba(30, 41, 59, 0.98)',
+      backgroundColor: getVar('--bg-modal'),
       borderRadius: '8px',
-      border: '1px solid rgba(148, 163, 184, 0.2)',
-      boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
+      border: `1px solid ${getVar('--border-color')}`,
+      boxShadow: getVar('--shadow-glass'),
       zIndex: 100,
     }),
     menuList: (base) => ({
@@ -113,7 +115,7 @@ export default function SearchableModelSelect({
     }),
     groupHeading: (base) => ({
       ...base,
-      color: '#94a3b8',
+      color: getVar('--text-muted'),
       fontSize: '11px',
       fontWeight: '600',
       textTransform: 'uppercase',
@@ -128,7 +130,7 @@ export default function SearchableModelSelect({
         : state.isFocused
           ? 'rgba(59, 130, 246, 0.15)'
           : 'transparent',
-      color: state.isSelected ? '#ffffff' : '#e2e8f0',
+      color: state.isSelected ? getVar('--text-primary') : getVar('--text-secondary'),
       padding: '8px 12px',
       borderRadius: '4px',
       cursor: 'pointer',
@@ -139,16 +141,16 @@ export default function SearchableModelSelect({
     }),
     singleValue: (base) => ({
       ...base,
-      color: '#e2e8f0',
+      color: getVar('--text-primary'),
       fontSize: '13px',
     }),
     input: (base) => ({
       ...base,
-      color: '#e2e8f0',
+      color: getVar('--text-primary'),
     }),
     placeholder: (base) => ({
       ...base,
-      color: '#64748b',
+      color: getVar('--text-muted'),
       fontSize: '13px',
     }),
     indicatorSeparator: () => ({
@@ -156,15 +158,15 @@ export default function SearchableModelSelect({
     }),
     dropdownIndicator: (base) => ({
       ...base,
-      color: '#64748b',
+      color: getVar('--text-muted'),
       padding: '6px',
       '&:hover': {
-        color: '#94a3b8',
+        color: getVar('--text-secondary'),
       },
     }),
     clearIndicator: (base) => ({
       ...base,
-      color: '#64748b',
+      color: getVar('--text-muted'),
       padding: '6px',
       '&:hover': {
         color: '#f87171',
@@ -172,12 +174,12 @@ export default function SearchableModelSelect({
     }),
     noOptionsMessage: (base) => ({
       ...base,
-      color: '#64748b',
+      color: getVar('--text-muted'),
       fontSize: '13px',
     }),
     loadingMessage: (base) => ({
       ...base,
-      color: '#64748b',
+      color: getVar('--text-muted'),
     }),
   };
 

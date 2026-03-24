@@ -6,9 +6,9 @@
 }
 
 .copy-button {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.7);
+    background: var(--copy-btn-bg);
+    border: 1px solid var(--copy-btn-border);
+    color: var(--copy-btn-color);
     padding: 4px 10px;
     border-radius: 6px;
     font-size: 0.8rem;
@@ -21,9 +21,9 @@
 }
 
 .copy-button:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--copy-btn-hover-bg);
+    color: var(--copy-btn-hover-color);
+    border-color: var(--border-subtle);
 }
 
 .copy-button.copied {

@@ -136,6 +136,10 @@ class Settings(BaseModel):
     # Execution Mode
     execution_mode: str = "full"  # Default execution mode: 'chat_only', 'chat_ranking', 'full'
 
+    # MCP Servers
+    mcp_servers: List[Dict] = []  # List of MCP server configs
+    mcp_tool_use_enabled: bool = True  # Enable MCP tool use in model queries
+
 
 def get_settings() -> Settings:
     """Load settings from file, or return defaults."""

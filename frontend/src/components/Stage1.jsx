@@ -5,6 +5,47 @@ import ThinkBlockRenderer from './ThinkBlockRenderer';
 import StageTimer from './StageTimer';
 import './Stage1.css';
 
+const buildExcalidrawHtml = (elementsJson) => {
+  let elements;
+  try {
+    const raw = typeof elementsJson === 'string' ? JSON.parse(elementsJson) : elementsJson;
+    elements = raw.filter(el => el.type !== 'cameraUpdate' && el.type !== 'delete');
+  } catch {
+    elements = [];
+  }
+  const scene = JSON.stringify({
+    type: "excalidraw",
+    version: 2,
+    elements: elements,
+    appState: { viewBackgroundColor: "#ffffff", gridSize: null },
+  });
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden}</style>
+</head><body>
+<div id="root" style="width:100%;height:100%"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"><\/script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"><\/script>
+<script src="https://unpkg.com/@excalidraw/excalidraw/dist/excalidraw.production.min.js"><\/script>
+<script>
+(function(){
+  var scene = ${scene};
+  var root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(
+    React.createElement(ExcalidrawLib.Excalidraw, {
+      initialData: scene,
+      viewModeEnabled: true,
+      zenModeEnabled: true,
+      gridModeEnabled: false,
+      UIOptions: { canvasActions: { export: false, loadScene: false, saveToActiveFile: false, toggleTheme: false } }
+    })
+  );
+})();
+<\/script>
+</body></html>`;
+};
+
 export default function Stage1({ responses, startTime, endTime }) {
   const [activeTab, setActiveTab] = useState(0);
 
@@ -138,6 +179,37 @@ export default function Stage1({ responses, startTime, endTime }) {
             )}
           </div>
         </div>
+
+        {/* Tool use indicator */}
+        {currentResponse?.tool_use_log && currentResponse.tool_use_log.length > 0 && (
+          <div className="tool-use-section">
+            <div className="tool-use-banner">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
+              <span>Used {currentResponse.tool_use_log.length} tool{currentResponse.tool_use_log.length !== 1 ? 's' : ''}:</span>
+              {currentResponse.tool_use_log.map((t, i) => (
+                <span key={i} className="tool-use-tag">{t.tool}</span>
+              ))}
+            </div>
+            {currentResponse.tool_use_log.map((t, i) => (
+              t.excalidraw_elements ? (
+                <div key={i} className="tool-use-viewer">
+                  <iframe
+                    srcDoc={buildExcalidrawHtml(t.excalidraw_elements)}
+                    title="Excalidraw Diagram"
+                    sandbox="allow-scripts"
+                    style={{ width: '100%', height: '500px', border: '1px solid var(--border-color)', borderRadius: '8px', background: '#fff' }}
+                  />
+                </div>
+              ) : t.image ? (
+                <div key={i} className="tool-use-image">
+                  <img src={`data:${t.image.mimeType};base64,${t.image.data}`} alt={`${t.tool} output`} />
+                </div>
+              ) : null
+            ))}
+          </div>
+        )}
 
         {hasError ? (
           <div className="response-error">

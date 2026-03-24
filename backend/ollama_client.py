@@ -14,7 +14,8 @@ async def query_model(
     model: str,
     messages: List[Dict[str, str]],
     timeout: float = 120.0,
-    temperature: float = 0.7
+    temperature: float = 0.7,
+    tools: list = None
 ) -> Optional[Dict[str, Any]]:
     """
     Query a single model via Ollama API.
@@ -24,6 +25,7 @@ async def query_model(
         messages: List of message dicts with 'role' and 'content'
         timeout: Request timeout in seconds
         temperature: Model temperature
+        tools: Optional list of tool definitions (OpenAI format)
 
     Returns:
         Response dict with 'content' and 'error' if failed
@@ -32,17 +34,26 @@ async def query_model(
     # Ensure base_url doesn't end with slash
     if base_url.endswith('/'):
         base_url = base_url[:-1]
-        
-    api_url = f"{base_url}/api/chat"
 
-    payload = {
-        "model": model,
-        "messages": messages,
-        "stream": False,
-        "options": {
-            "temperature": temperature
+    # Use OpenAI-compatible endpoint when tools are provided
+    if tools:
+        api_url = f"{base_url}/v1/chat/completions"
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "tools": tools,
         }
-    }
+    else:
+        api_url = f"{base_url}/api/chat"
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": temperature
+            }
+        }
 
     last_error = None
 
@@ -56,7 +67,20 @@ async def query_model(
 
                 response.raise_for_status()
                 data = response.json()
-                
+
+                # OpenAI-compatible format (used when tools are provided)
+                if tools:
+                    from .tool_use import extract_tool_calls_openai
+                    content, tool_calls, raw_message = extract_tool_calls_openai(data)
+                    if tool_calls:
+                        return {
+                            'content': content,
+                            'tool_calls': tool_calls,
+                            'raw_message': raw_message,
+                            'error': None,
+                        }
+                    return {'content': content, 'error': None}
+
                 return {
                     'content': data.get('message', {}).get('content', ''),
                     'error': None
